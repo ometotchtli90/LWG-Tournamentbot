@@ -155,7 +155,7 @@ async function startCurrentRound() {
   if (!realMatches.length) { advanceRound(); return; }
 
   const roundName = getRoundName(state.currentRound, state.bracket.length);
-  await chat(`⚔️ ${roundName} — ${realMatches.length} match(es). Check your PMs!`);
+  await chat(`⚔️ ${roundName} — ${realMatches.length} match(es).`);
 
   for (let i = 0; i < realMatches.length; i++) {
     setTimeout(() => dispatchMatch(realMatches[i]), i * cfg.betweenMatchDelayMs);
