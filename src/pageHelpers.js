@@ -9,17 +9,16 @@ async function navigateToLobby(page) {
 
 // ── Login ─────────────────────────────────────────────────
 async function login(page, username, password) {
-  // Wait for login form
-  await page.waitForSelector('#loginName, input[name="username"], input[id*="login" i]', { timeout: 15000 });
+  // Click the "Log in" button to open the login form
+  await page.waitForSelector('#loginPromptButton', { timeout: 15000 });
+  await page.click('#loginPromptButton');
 
-  const nameField = await page.$('#loginName') || await page.$('input[name="username"]');
-  const passField = await page.$('#loginPassword') || await page.$('input[type="password"]');
+  // Wait for login fields to appear
+  await page.waitForSelector('#loginWindowUsername', { timeout: 10000 });
 
-  if (!nameField || !passField) throw new Error(`Login fields not found for ${username}`);
-
-  await nameField.fill(username);
-  await passField.fill(password);
-  await passField.press('Enter');
+  await page.fill('#loginWindowUsername', username);
+  await page.fill('#loginWindowPassword', password);
+  await page.keyboard.press('Enter');
 
   // Wait until the player name display appears (confirms successful login)
   await page.waitForSelector('#playerNameDisplay', { timeout: 20000 });
