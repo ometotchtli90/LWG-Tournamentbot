@@ -11,7 +11,6 @@ Runs 5 browser accounts simultaneously via [Playwright](https://playwright.dev/)
 - **Automated signup** — players type `!join` in lobby chat to register
 - **Single-elimination bracket** — randomly seeded, BYE slots handled automatically
 - **Fully automated match hosting** — worker bots create the game, select the map, spectate, kick intruders, start the game, and detect the winner
-- **Private messaging** — each player receives their match details via PM
 - **Winner detection** — watches for GG in chat and/or player disconnect
 - **Live web dashboard** — real-time bracket, worker status, event log, and manual controls
 - **Cross-platform** — works on Windows, macOS, and Linux
