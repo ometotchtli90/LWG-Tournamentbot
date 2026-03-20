@@ -333,4 +333,18 @@ async function doReset() {
   emit('reset', {});
 }
 
-module.exports = { boot, setBroadcast, getSnapshot, dashboardCommand, emit };
+
+// ── Lifecycle helpers for Electron ────────────────────────
+function isRunning() {
+  return !!state.browser;
+}
+
+async function shutdown() {
+  if (state.stopChatWatch) state.stopChatWatch();
+  if (state.browser) {
+    try { await state.browser.close(); } catch (_) {}
+    state.browser = null;
+  }
+}
+
+module.exports = { boot, setBroadcast, getSnapshot, dashboardCommand, emit, isRunning, shutdown };

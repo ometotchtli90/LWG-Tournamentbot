@@ -1,3 +1,4 @@
 node_modules/
-accounts.json
+dist/
+.env
 *.log
