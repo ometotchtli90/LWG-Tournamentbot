@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LWG Tournament Manager</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --gold:     #f0a500;
+    --green:    #3fb950;
+    --red:      #f85149;
+    --blue:     #58a6ff;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --radius:   8px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  header h1 { font-size: 18px; color: var(--gold); }
+  #phaseTag {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; padding: 3px 10px;
+    border-radius: 20px; background: var(--border); color: var(--muted);
+  }
+  #phaseTag.signup  { background: #1f3a1f; color: var(--green); }
+  #phaseTag.running { background: #1f2e3a; color: var(--blue);  }
+  #phaseTag.done    { background: #3a1f1f; color: var(--gold);  }
+
+  /* ── Layout ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 260px 1fr 280px;
+    grid-template-rows: 1fr;
+    gap: 1px;
+    background: var(--border);
+    flex: 1;
+    overflow: hidden;
+  }
+  .panel {
+    background: var(--bg);
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+  .card-title {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px; padding: 7px 14px; border-radius: 6px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-gold    { background: var(--gold);  color: #000; }
+  .btn-green   { background: var(--green); color: #000; }
+  .btn-red     { background: var(--red);   color: #fff; }
+  .btn-ghost   { background: var(--border); color: var(--text); }
+  .btn-sm      { padding: 4px 10px; font-size: 12px; }
+  .btn-full    { width: 100%; }
+
+  /* ── Workers ── */
+  .worker-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0; border-bottom: 1px solid var(--border);
+  }
+  .worker-row:last-child { border-bottom: none; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .dot.free { background: var(--green); }
+  .dot.busy { background: var(--gold); }
+  .worker-name { flex: 1; font-size: 13px; }
+  .worker-status { font-size: 11px; color: var(--muted); }
+
+  /* ── Players ── */
+  .player-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 0; border-bottom: 1px solid var(--border);
+  }
+  .player-item:last-child { border-bottom: none; }
+  .player-name { font-size: 13px; }
+
+  /* ── Bracket ── */
+  #bracketArea {
+    display: flex; gap: 20px; align-items: flex-start;
+    overflow-x: auto; padding-bottom: 8px; min-height: 200px;
+  }
+  .bracket-round { flex-shrink: 0; min-width: 150px; }
+  .round-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; text-align: center; margin-bottom: 10px;
+    padding: 4px 0; border-radius: 4px;
+  }
+  .round-title.current { color: var(--gold); border: 1px solid var(--gold); }
+  .round-title.done    { color: var(--green); }
+  .round-title.future  { color: var(--muted); }
+
+  .match-card {
+    border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden; margin-bottom: 12px;
+  }
+  .match-card.active { border-color: var(--gold); }
+  .match-slot {
+    padding: 6px 10px; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .match-slot:last-child { border-bottom: none; }
+  .match-slot.winner { background: #1a3d1a; }
+  .match-slot.loser  { background: #3d1a1a; color: var(--muted); text-decoration: line-through; }
+  .match-slot.bye    { color: var(--muted); font-style: italic; }
+  .match-slot.tbd    { color: var(--muted); }
+  .trophy { font-size: 11px; }
+
+  /* ── Log ── */
+  #logList {
+    list-style: none; display: flex; flex-direction: column; gap: 4px;
+  }
+  .log-item {
+    font-size: 12px; padding: 5px 8px; border-radius: 4px;
+    border-left: 3px solid var(--border);
+    background: var(--surface); word-break: break-word;
+  }
+  .log-item.result    { border-color: var(--gold); }
+  .log-item.error     { border-color: var(--red); }
+  .log-item.phase     { border-color: var(--blue); }
+  .log-item.player    { border-color: var(--green); }
+  .ts { color: var(--muted); font-size: 10px; margin-right: 4px; }
+
+  /* ── Input row ── */
+  .input-row { display: flex; gap: 6px; }
+  .input-row input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px; color: var(--text);
+    font-size: 13px; outline: none;
+  }
+  .input-row input:focus { border-color: var(--blue); }
+
+  /* ── Active matches ── */
+  .match-active-row {
+    font-size: 12px; padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .match-active-row:last-child { border-bottom: none; }
+  .match-active-row .vs  { font-weight: 600; }
+  .match-active-row .sub { color: var(--muted); font-size: 11px; }
+
+  /* ── Champion banner ── */
+  #championBanner {
+    display: none; text-align: center; padding: 20px;
+    background: linear-gradient(135deg, #1a1200, #2a1e00);
+    border: 2px solid var(--gold); border-radius: var(--radius);
+    font-size: 22px; font-weight: 700; color: var(--gold);
+  }
+
+  /* ── Connection indicator ── */
+  #connDot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-left: auto; }
+  #connDot.on { background: var(--green); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏆 LWG Tournament Manager</h1>
+  <span id="phaseTag">IDLE</span>
+  <div id="connDot" title="WebSocket connection"></div>
+</header>
+
+<div class="layout">
+
+  <!-- LEFT PANEL: controls + workers + players -->
+  <div class="panel">
+
+    <!-- Main actions -->
+    <div class="card">
+      <div class="card-title">Controls</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-gold btn-full" id="btnOpenSignup">Open Signup</button>
+        <button class="btn btn-ghost btn-full" id="btnCloseSignup" disabled>Close Signup Early</button>
+        <button class="btn btn-ghost btn-full" id="btnPrintBracket">Print Bracket to Chat</button>
+        <button class="btn btn-ghost btn-full" id="btnStandings">Print Standings</button>
+        <button class="btn btn-red btn-full" id="btnReset">Reset Tournament</button>
+      </div>
+    </div>
+
+    <!-- Add / remove player -->
+    <div class="card">
+      <div class="card-title">Manual Player</div>
+      <div class="input-row">
+        <input id="inAddPlayer" placeholder="Username" />
+        <button class="btn btn-green btn-sm" id="btnAddPlayer">Add</button>
+      </div>
+      <div style="margin-top:8px;" class="input-row">
+        <input id="inRemovePlayer" placeholder="Username" />
+        <button class="btn btn-red btn-sm" id="btnRemovePlayer">Remove</button>
+      </div>
+    </div>
+
+    <!-- Force win -->
+    <div class="card">
+      <div class="card-title">Force Win</div>
+      <div class="input-row">
+        <input id="inForceWin" placeholder="Winner name" />
+        <button class="btn btn-ghost btn-sm" id="btnForceWin">Apply</button>
+      </div>
+    </div>
+
+    <!-- Workers -->
+    <div class="card">
+      <div class="card-title">Workers</div>
+      <div id="workerList"></div>
+    </div>
+
+    <!-- Registered players -->
+    <div class="card">
+      <div class="card-title">Players (<span id="playerCount">0</span>)</div>
+      <div id="playerList"></div>
+    </div>
+
+  </div>
+
+  <!-- CENTRE PANEL: bracket -->
+  <div class="panel">
+    <div id="championBanner"></div>
+    <div class="card" style="flex:1;">
+      <div class="card-title">Bracket</div>
+      <div id="bracketArea"><span style="color:var(--muted)">No bracket yet.</span></div>
+    </div>
+
+    <!-- Active matches -->
+    <div class="card">
+      <div class="card-title">Active Matches</div>
+      <div id="activeMatchList"><span style="color:var(--muted);font-size:12px">None</span></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: event log -->
+  <div class="panel">
+    <div class="card" style="flex:1;">
+      <div class="card-title" style="display:flex;justify-content:space-between;">
+        Event Log
+        <button class="btn btn-ghost btn-sm" id="btnClearLog">Clear</button>
+      </div>
+      <ul id="logList"></ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────
+let state = {
+  phase: 'idle', players: [], bracket: [], currentRound: 0,
+  activeMatches: {}, workers: [], log: [],
+};
+
+// ── WebSocket ─────────────────────────────────────────────
+let ws;
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}`);
+  ws.onopen = () => {
+    document.getElementById('connDot').classList.add('on');
+  };
+  ws.onclose = () => {
+    document.getElementById('connDot').classList.remove('on');
+    setTimeout(connectWS, 2000);
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'snapshot') {
+      state = { phase: msg.phase, players: msg.players, bracket: msg.bracket,
+                currentRound: msg.currentRound, activeMatches: msg.activeMatches,
+                workers: msg.workers, log: msg.log || [] };
+    } else {
+      applyEvent(msg);
+    }
+    render();
+  };
+}
+
+function applyEvent(msg) {
+  switch (msg.type) {
+    case 'phase':
+      state.phase = msg.phase;
+      if (msg.champion) state.champion = msg.champion;
+      break;
+    case 'player_joined':
+      if (!state.players.includes(msg.username)) state.players.push(msg.username);
+      break;
+    case 'bracket':
+      state.bracket = msg.bracket;
+      break;
+    case 'match_start':
+      state.activeMatches[msg.gameName] = { p1: msg.p1, p2: msg.p2, worker: msg.worker };
+      break;
+    case 'match_result':
+    case 'match_error':
+      delete state.activeMatches[msg.gameName];
+      break;
+    case 'reset':
+      state = { phase: 'idle', players: [], bracket: [], currentRound: 0,
+                activeMatches: {}, workers: state.workers, log: [] };
+      state.champion = null;
+      break;
+  }
+  state.log.push(msg);
+  if (state.log.length > 200) state.log.shift();
+}
+
+// ── API ───────────────────────────────────────────────────
+async function cmd(command, args = []) {
+  const r = await fetch('/api/cmd', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cmd: command, args }),
+  });
+  return r.json();
+}
+
+// ── Render ────────────────────────────────────────────────
+function render() {
+  renderPhase();
+  renderWorkers();
+  renderPlayers();
+  renderBracket();
+  renderActiveMatches();
+  renderLog();
+  renderButtons();
+}
+
+function renderPhase() {
+  const tag = document.getElementById('phaseTag');
+  tag.textContent = state.phase.toUpperCase();
+  tag.className = state.phase;
+
+  const banner = document.getElementById('championBanner');
+  if (state.phase === 'done' && state.champion) {
+    banner.textContent = `🥇 Champion: ${state.champion}`;
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function renderButtons() {
+  const idle    = state.phase === 'idle';
+  const signup  = state.phase === 'signup';
+  const running = state.phase === 'running';
+  document.getElementById('btnOpenSignup').disabled  = !idle;
+  document.getElementById('btnCloseSignup').disabled = !signup;
+}
+
+function renderWorkers() {
+  const el = document.getElementById('workerList');
+  if (!state.workers?.length) { el.innerHTML = '<span style="color:var(--muted);font-size:12px">No workers connected</span>'; return; }
+  el.innerHTML = state.workers.map(w => `
+    <div class="worker-row">
+      <div class="dot ${w.busy ? 'busy' : 'free'}"></div>
+      <span class="worker-name">${w.username}</span>
+      <span class="worker-status">${w.busy ? 'hosting' : 'free'}</span>
+    </div>
+  `).join('');
+}
+
+function renderPlayers() {
+  const el = document.getElementById('playerList');
+  document.getElementById('playerCount').textContent = state.players.length;
+  if (!state.players.length) { el.innerHTML = '<span style="color:var(--muted);font-size:12px">None yet</span>'; return; }
+  el.innerHTML = state.players.map(p => `
+    <div class="player-item">
+      <span class="player-name">${p}</span>
+    </div>
+  `).join('');
+}
+
+function renderBracket() {
+  const el = document.getElementById('bracketArea');
+  if (!state.bracket?.length) {
+    el.innerHTML = '<span style="color:var(--muted)">No bracket yet.</span>';
+    return;
+  }
+
+  const total = state.bracket.length;
+  el.innerHTML = state.bracket.map((round, ri) => {
+    const name    = getRoundName(ri, total);
+    const cls     = ri < state.currentRound ? 'done' : ri === state.currentRound ? 'current' : 'future';
+    const matches = round.map(m => {
+      const p1 = m.p1 || 'TBD', p2 = m.p2 || 'TBD';
+      const w  = m.winner;
+      const active = !w && p1 !== 'BYE' && p2 !== 'BYE' && ri === state.currentRound;
+
+      const slot = (name, isBye) => {
+        const cls2 = isBye ? 'bye' : !name || name === 'TBD' ? 'tbd' : w === name ? 'winner' : w ? 'loser' : '';
+        return `<div class="match-slot ${cls2}">${name === 'BYE' ? 'BYE' : name || 'TBD'}${w === name ? ' <span class="trophy">🏆</span>' : ''}</div>`;
+      };
+
+      return `<div class="match-card ${active ? 'active' : ''}">
+        ${slot(p1, p1 === 'BYE')}${slot(p2, p2 === 'BYE')}
+      </div>`;
+    }).join('');
+
+    return `<div class="bracket-round">
+      <div class="round-title ${cls}">${name}</div>
+      ${matches}
+    </div>`;
+  }).join('');
+}
+
+function renderActiveMatches() {
+  const el = document.getElementById('activeMatchList');
+  const matches = Object.entries(state.activeMatches || {});
+  if (!matches.length) { el.innerHTML = '<span style="color:var(--muted);font-size:12px">None</span>'; return; }
+  el.innerHTML = matches.map(([game, m]) => `
+    <div class="match-active-row">
+      <span class="vs">${m.p1} vs ${m.p2}</span>
+      <span class="sub">${game} · hosted by ${m.worker}</span>
+    </div>
+  `).join('');
+}
+
+function renderLog() {
+  const el = document.getElementById('logList');
+  const items = (state.log || []).slice().reverse().slice(0, 60);
+  el.innerHTML = items.map(e => {
+    const cls = e.type === 'match_result' ? 'result'
+              : e.type === 'error' || e.type === 'match_error' ? 'error'
+              : e.type === 'phase' ? 'phase'
+              : e.type === 'player_joined' ? 'player'
+              : '';
+    const time = new Date(e.ts).toLocaleTimeString();
+    const label = formatLogEntry(e);
+    return `<li class="log-item ${cls}"><span class="ts">${time}</span>${label}</li>`;
+  }).join('');
+}
+
+function formatLogEntry(e) {
+  switch (e.type) {
+    case 'boot':         return `Bot booted (${e.workers?.length || 0} workers)`;
+    case 'phase':        return `Phase → ${e.phase}${e.champion ? ' · Champion: ' + e.champion : ''}`;
+    case 'player_joined': return `${e.username} joined (${e.count} total)`;
+    case 'match_start':  return `Match started: ${e.p1} vs ${e.p2} (${e.worker})`;
+    case 'match_result': return `${e.winner} beat ${e.loser} [${e.method}]`;
+    case 'match_status': return `${e.gameName}: ${e.status}`;
+    case 'match_error':  return `⚠️ ${e.gameName}: ${e.error}`;
+    case 'error':        return `⚠️ ${e.msg}`;
+    case 'chat_out':     return `→ ${e.text}`;
+    case 'reset':        return 'Tournament reset';
+    default:             return JSON.stringify(e).slice(0, 80);
+  }
+}
+
+function getRoundName(ri, total) {
+  const r = total - ri;
+  if (r === 1) return 'Grand Final';
+  if (r === 2) return 'Semi-Finals';
+  if (r === 3) return 'Quarter-Finals';
+  return `Round ${ri + 1}`;
+}
+
+// ── Button handlers ───────────────────────────────────────
+document.getElementById('btnOpenSignup').onclick  = () => cmd('openSignup');
+document.getElementById('btnCloseSignup').onclick = () => cmd('closeSignup');
+document.getElementById('btnPrintBracket').onclick = () => cmd('printBracket');
+document.getElementById('btnStandings').onclick   = () => cmd('standings');
+document.getElementById('btnReset').onclick       = () => { if (confirm('Reset tournament?')) cmd('reset'); };
+document.getElementById('btnClearLog').onclick    = () => { state.log = []; render(); };
+
+document.getElementById('btnAddPlayer').onclick = () => {
+  const v = document.getElementById('inAddPlayer').value.trim();
+  if (v) { cmd('addPlayer', [v]); document.getElementById('inAddPlayer').value = ''; }
+};
+document.getElementById('inAddPlayer').onkeydown = (e) => {
+  if (e.key === 'Enter') document.getElementById('btnAddPlayer').click();
+};
+
+document.getElementById('btnRemovePlayer').onclick = () => {
+  const v = document.getElementById('inRemovePlayer').value.trim();
+  if (v) { cmd('removePlayer', [v]); document.getElementById('inRemovePlayer').value = ''; }
+};
+
+document.getElementById('btnForceWin').onclick = () => {
+  const v = document.getElementById('inForceWin').value.trim();
+  if (v) { cmd('forceWin', [v]); document.getElementById('inForceWin').value = ''; }
+};
+document.getElementById('inForceWin').onkeydown = (e) => {
+  if (e.key === 'Enter') document.getElementById('btnForceWin').click();
+};
+
+// ── Poll full state every 5s as safety net ────────────────
+setInterval(async () => {
+  const snap = await fetch('/api/state').then(r => r.json()).catch(() => null);
+  if (snap) {
+    state.workers = snap.workers;
+    state.activeMatches = snap.activeMatches;
+    render();
+  }
+}, 5000);
+
+// ── Init ──────────────────────────────────────────────────
+connectWS();
+</script>
+</body>
+</html>

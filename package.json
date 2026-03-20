@@ -1,0 +1,16 @@
+{
+  "name": "lwg-tournament-bot",
+  "version": "1.0.0",
+  "description": "LittleWarGame automated tournament manager",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "install-browsers": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0",
+    "express": "^4.19.2",
+    "ws": "^8.17.0",
+    "chalk": "^4.1.2"
+  }
+}
