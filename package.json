@@ -5,11 +5,10 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "install-browsers": "npx playwright install chromium",
-    "dist:win":   "electron-builder --win",
-    "dist:mac":   "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
-    "dist:all":   "electron-builder --win --mac --linux"
+    "dist:all": "electron-builder --win --mac --linux"
   },
   "dependencies": {
     "playwright": "^1.44.0",
@@ -27,36 +26,22 @@
     "files": [
       "src/**/*",
       "dashboard/**/*",
-      "assets/**/*",
-      "node_modules/**/*",
-      "!node_modules/playwright/.local-browsers/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "node_modules/playwright/.local-browsers",
-        "to":   "playwright-browsers",
-        "filter": ["**/*"]
-      }
+      "node_modules/**/*"
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
-      "icon": "assets/icon.ico"
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
     },
     "mac": {
       "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
-      "icon": "assets/icon.icns",
       "category": "public.app-category.utilities"
     },
     "linux": {
       "target": [{ "target": "AppImage", "arch": ["x64"] }],
-      "icon": "assets/icon.png",
       "category": "Utility"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico"
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

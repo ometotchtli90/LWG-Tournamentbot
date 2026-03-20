@@ -125,35 +125,69 @@
 
   /* ── Input ────────────────────────────────── */
   input[type="text"], input[type="password"] {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: 6px; padding: 7px 10px; color: var(--text);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 11px; color: var(--text);
     font-size: 13px; outline: none; width: 100%;
     transition: border-color .15s;
   }
   input:focus { border-color: var(--blue); }
-  .input-row { display: flex; gap: 6px; }
-  .input-row input { flex: 1; }
+
+  /* ── Action input group (input + button side by side) ── */
+  .action-group {
+    display: flex; gap: 0; border-radius: 7px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .action-group input {
+    flex: 1; border: none; border-radius: 0;
+    background: var(--surface2); padding: 9px 11px;
+  }
+  .action-group input:focus { border-color: transparent; box-shadow: inset 0 0 0 2px var(--blue); }
+  .action-group .action-btn {
+    flex-shrink: 0; padding: 0 16px; border: none; border-left: 1px solid var(--border);
+    font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s;
+    display: flex; align-items: center; justify-content: center; min-width: 52px;
+  }
+  .action-group .action-btn:hover { filter: brightness(1.2); }
+  .action-group .action-btn.green { background: var(--green); color: #000; }
+  .action-group .action-btn.red   { background: #3d1a1a;      color: var(--red); }
+  .action-group .action-btn.ghost { background: var(--surface2); color: var(--text); }
+
+  /* ── Section divider inside card ─────────────────────── */
+  .section-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted);
+    margin: 10px 0 5px; display: flex; align-items: center; gap: 6px;
+  }
+  .section-label:first-child { margin-top: 0; }
+  .section-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
 
   /* ── Workers ──────────────────────────────── */
   .worker-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 5px 0; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 0; border-bottom: 1px solid var(--border);
   }
   .worker-row:last-child { border-bottom: none; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .dot.free { background: var(--green); box-shadow: 0 0 6px var(--green); }
-  .dot.busy { background: var(--gold);  box-shadow: 0 0 6px var(--gold); }
+  .dot.free { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .dot.busy { background: var(--gold);  box-shadow: 0 0 5px var(--gold); }
   .dot.off  { background: var(--muted); }
-  .worker-name   { flex: 1; }
+  .worker-name   { flex: 1; font-size: 13px; }
   .worker-status { font-size: 11px; color: var(--muted); }
 
   /* ── Players ──────────────────────────────── */
   .player-item {
-    display: flex; align-items: center;
-    padding: 4px 0; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; border-bottom: 1px solid var(--border);
   }
   .player-item:last-child { border-bottom: none; }
-  .player-seed { width: 20px; font-size: 10px; color: var(--muted); }
+  .player-seed {
+    width: 18px; height: 18px; border-radius: 4px;
+    background: var(--surface2); border: 1px solid var(--border);
+    font-size: 10px; color: var(--muted); font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
 
   /* ── Bracket ──────────────────────────────── */
   #bracketArea {
@@ -285,7 +319,7 @@
 <div id="bootOverlay">
   <div class="spinner"></div>
   <div class="boot-label">Launching browsers…</div>
-  <div class="boot-sub">Logging into all 5 accounts. This takes ~20 seconds.</div>
+  <div class="boot-sub">Opening 1 visible window (controller) + 4 invisible workers. ~20 seconds.</div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -296,49 +330,66 @@
   <!-- LEFT -->
   <div class="panel">
 
+    <!-- Launch + tournament flow -->
     <div class="card">
-      <div class="card-title">Controls</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <button class="btn btn-blue  btn-full" id="btnBoot"        onclick="doBoot()">🚀 Launch Browsers</button>
-        <button class="btn btn-gold  btn-full" id="btnOpenSignup"  onclick="cmd('openSignup')"  disabled>Open Signup</button>
-        <button class="btn btn-ghost btn-full" id="btnCloseSignup" onclick="cmd('closeSignup')" disabled>Close Signup Early</button>
-        <button class="btn btn-ghost btn-full" onclick="cmd('printBracket')">Print Bracket to Chat</button>
-        <button class="btn btn-ghost btn-full" onclick="cmd('standings')">Print Standings</button>
-        <button class="btn btn-red   btn-full" onclick="doReset()">Reset Tournament</button>
+      <div class="card-title">Tournament</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn btn-blue btn-full" id="btnBoot" onclick="doBoot()">🚀 Launch Browsers</button>
+        <button class="btn btn-gold btn-full" id="btnOpenSignup" onclick="cmd('openSignup')" disabled>▶ Open Signup</button>
+        <button class="btn btn-ghost btn-full" id="btnCloseSignup" onclick="cmd('closeSignup')" disabled>⏹ Close Signup Early</button>
+      </div>
+      <div style="height:1px;background:var(--border);margin:10px 0;"></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost" style="flex:1;font-size:12px;min-width:0;" onclick="cmd('printBracket')">Bracket</button>
+        <button class="btn btn-ghost" style="flex:1;font-size:12px;min-width:0;" onclick="cmd('standings')">Standings</button>
+      </div>
+      <div style="margin-top:6px;">
+        <button class="btn btn-full" style="background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;font-size:12px;" onclick="doReset()">↺ Reset Tournament</button>
       </div>
     </div>
 
+    <!-- Add / remove / force win — one card -->
     <div class="card">
-      <div class="card-title">Manual Player</div>
-      <div class="input-row" style="margin-bottom:8px;">
-        <input id="inAddPlayer" placeholder="Add player…" onkeydown="if(event.key==='Enter')btnAddPlayer.click()">
-        <button class="btn btn-green btn-sm" id="btnAddPlayer" onclick="doAddPlayer()">Add</button>
+      <div class="card-title">Manual Controls</div>
+
+      <div class="section-label">Add player</div>
+      <div class="action-group">
+        <input id="inAddPlayer" type="text" placeholder="Username…"
+               onkeydown="if(event.key==='Enter')doAddPlayer()">
+        <button class="action-btn green" onclick="doAddPlayer()">Add</button>
       </div>
-      <div class="input-row">
-        <input id="inRemovePlayer" placeholder="Remove player…" onkeydown="if(event.key==='Enter')btnRemovePlayer.click()">
-        <button class="btn btn-red btn-sm" id="btnRemovePlayer" onclick="doRemovePlayer()">Remove</button>
+
+      <div class="section-label">Remove player</div>
+      <div class="action-group">
+        <input id="inRemovePlayer" type="text" placeholder="Username…"
+               onkeydown="if(event.key==='Enter')doRemovePlayer()">
+        <button class="action-btn red" onclick="doRemovePlayer()">✕</button>
+      </div>
+
+      <div class="section-label">Force win</div>
+      <div class="action-group">
+        <input id="inForceWin" type="text" placeholder="Winner name…"
+               onkeydown="if(event.key==='Enter')doForceWin()">
+        <button class="action-btn ghost" onclick="doForceWin()">Apply</button>
       </div>
     </div>
 
+    <!-- Workers -->
     <div class="card">
-      <div class="card-title">Force Win</div>
-      <div class="input-row">
-        <input id="inForceWin" placeholder="Winner name…" onkeydown="if(event.key==='Enter')btnForceWin.click()">
-        <button class="btn btn-ghost btn-sm" id="btnForceWin" onclick="doForceWin()">Apply</button>
+      <div class="card-title">
+        Workers
+        <span id="workerOnlineCount" style="color:var(--muted);font-weight:400;font-size:11px;"></span>
       </div>
+      <div id="workerList"><span style="color:var(--muted);font-size:12px;">Not launched yet</span></div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Workers</div>
-      <div id="workerList"><span style="color:var(--muted)">Not launched yet</span></div>
-    </div>
-
+    <!-- Players -->
     <div class="card">
       <div class="card-title">
         Players
-        <span id="playerCount" style="color:var(--muted);font-weight:400">0</span>
+        <span id="playerCount" style="color:var(--muted);font-weight:400;">0</span>
       </div>
-      <div id="playerList"><span style="color:var(--muted)">None yet</span></div>
+      <div id="playerList"><span style="color:var(--muted);font-size:12px;">None yet</span></div>
     </div>
 
   </div>
@@ -507,15 +558,18 @@ async function cmd(command, args = []) {
 async function doBoot() {
   if (booted) return;
   document.getElementById('bootOverlay').classList.add('show');
+  document.getElementById('btnBoot').disabled = true;
   try {
     const r = await cmd('boot');
     if (r.error) {
       alert('Boot failed: ' + r.error);
+      document.getElementById('btnBoot').disabled = false;  // re-enable on error
     } else {
       booted = true;
     }
   } catch (e) {
     alert('Boot failed: ' + e.message);
+    document.getElementById('btnBoot').disabled = false;  // re-enable on error
   } finally {
     document.getElementById('bootOverlay').classList.remove('show');
   }
@@ -569,16 +623,24 @@ function renderButtons() {
 }
 
 function renderWorkers() {
-  const el = document.getElementById('workerList');
+  const el    = document.getElementById('workerList');
+  const badge = document.getElementById('workerOnlineCount');
   if (!S.workers?.length) {
-    el.innerHTML = '<span style="color:var(--muted);font-size:12px">Not launched yet</span>';
+    el.innerHTML = '<span style="color:var(--muted);font-size:12px;">Not launched yet</span>';
+    if (badge) badge.textContent = '';
     return;
+  }
+  const free = S.workers.filter(w => !w.busy).length;
+  const busy = S.workers.length - free;
+  if (badge) {
+    badge.textContent = busy ? `${free} free · ${busy} hosting` : `${free} free`;
+    badge.style.color = busy ? 'var(--gold)' : 'var(--green)';
   }
   el.innerHTML = S.workers.map(w => `
     <div class="worker-row">
       <div class="dot ${w.busy ? 'busy' : 'free'}"></div>
       <span class="worker-name">${w.username}</span>
-      <span class="worker-status">${w.busy ? '● hosting' : 'free'}</span>
+      <span class="worker-status">${w.busy ? 'hosting' : 'free'}</span>
     </div>`).join('');
 }
 
@@ -642,7 +704,8 @@ function renderLog() {
 
 function fmtLog(e) {
   switch (e.type) {
-    case 'boot':          return `Bot launched (${e.workers?.length || 0} workers)`;
+    case 'boot':          return `Bot launched (${e.workers?.length || 0} workers · ${e.channel || 'chromium'})`;
+    case 'browser_channel': return `Browser: ${e.channel}`;
     case 'phase':         return `Phase → ${e.phase}${e.champion ? ' · Champion: ' + e.champion : ''}`;
     case 'player_joined': return `${e.username} joined (${e.count} total)`;
     case 'match_start':   return `Match: ${e.p1} vs ${e.p2} (${e.worker})`;

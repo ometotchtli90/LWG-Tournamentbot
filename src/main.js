@@ -139,25 +139,23 @@ function startServer() {
 // ── Boot tournament (launch Playwright browsers) ──────────
 let booting = false;
 async function bootTournament() {
-  if (booting) throw new Error('Already booting');
+  if (booting) throw new Error('Already booting — please wait');
   booting = true;
 
-  const accounts = loadAccounts();
-  if (!accounts.controller?.password) throw new Error('Controller password not set in Settings');
+  try {
+    const accounts = loadAccounts();
+    if (!accounts.controller?.password) throw new Error('Controller password not set in Settings');
 
-  const emptyWorkers = accounts.workers.filter(w => !w.password);
-  if (emptyWorkers.length) throw new Error(`Missing passwords for: ${emptyWorkers.map(w => w.username).join(', ')}`);
+    const emptyWorkers = accounts.workers.filter(w => !w.password);
+    if (emptyWorkers.length) throw new Error(`Missing passwords for: ${emptyWorkers.map(w => w.username).join(', ')}`);
 
-  // Set Playwright browser path to bundled browsers in production
-  if (app.isPackaged) {
-    const browsersPath = path.join(process.resourcesPath, 'playwright-browsers');
-    process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+    const controller = require('./controller');
+    controller.setBroadcast(wsBroadcast);
+    await controller.boot(accounts);
+  } finally {
+    // Always reset the flag so the button works again after errors
+    booting = false;
   }
-
-  const controller = require('./controller');
-  controller.setBroadcast(wsBroadcast);
-  await controller.boot(accounts);
-  booting = false;
 }
 
 // ── Create main window ────────────────────────────────────

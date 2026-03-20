@@ -7,6 +7,33 @@ const workerMod      = require('./worker');
 const { buildBracket, propagateWinner, autoAdvanceByes,
         getRoundName, getEliminated }  = require('./bracket');
 
+// ── Launch browser (Chrome → Edge → Chromium fallback) ────
+// Tries the user's installed Chrome first so no bundled
+// Chromium download is needed. Falls back automatically.
+async function launchBrowser(headless = false) {
+  const channels = ['chrome', 'msedge', 'chrome-beta', 'chromium'];
+  let lastErr;
+  for (const channel of channels) {
+    try {
+      const browser = await chromium.launch({
+        channel:  channel === 'chromium' ? undefined : channel,
+        headless,
+      });
+      console.log(`  Browser: using ${channel} (headless=${headless})`);
+      return { browser, channel };
+    } catch (e) {
+      lastErr = e;
+      console.log(`  Browser: ${channel} not found, trying next...`);
+    }
+  }
+  throw new Error(
+    'No usable browser found. Please install Google Chrome or run ' +
+    '"npx playwright install chromium" to use the bundled browser.
+' +
+    lastErr.message
+  );
+}
+
 // ── State ─────────────────────────────────────────────────
 const state = {
   phase:         'idle',   // idle | signup | running | done
@@ -18,9 +45,10 @@ const state = {
   log:           [],       // event log for dashboard
 
   // Playwright handles
-  browser:          null,
+  browser:          null,   // visible controller browser
+  workerBrowser:    null,   // headless worker browser
   controllerPage:   null,
-  workerPages:      [],    // [ { page, username } ]
+  workerPages:      [],     // [ { page, username } ]
   stopChatWatch:    null,
 };
 
@@ -38,20 +66,29 @@ function emit(type, payload = {}) {
 // ── Boot: launch all browsers and log in ─────────────────
 async function boot(accounts) {
   console.log('\n🏆 Tournament Bot booting...');
-  state.browser = await chromium.launch({ headless: false });
 
-  // Controller
+  // Controller — visible browser window (user can see it)
+  const { browser: ctrlBrowser, channel } = await launchBrowser(false);
+  state.browser = ctrlBrowser;
+  emit('browser_channel', { channel });
+
   console.log(`  Logging in controller: ${accounts.controller.username}`);
-  const ctx0 = await state.browser.newContext();
-  const cp   = await ctx0.newPage();
+  const ctrlCtx = await ctrlBrowser.newContext();
+  const cp      = await ctrlCtx.newPage();
   await ph.navigateToLobby(cp);
   await ph.login(cp, accounts.controller.username, accounts.controller.password);
   state.controllerPage = cp;
 
-  // Workers
+  // Workers — headless browser (invisible, no windows)
+  // Each account gets its own isolated context for separate sessions.
+  // Monitor activity via the dashboard event log.
+  console.log('  Launching headless workers...');
+  const { browser: workerBrowser } = await launchBrowser(true);
+  state.workerBrowser = workerBrowser;
+
   for (const acc of accounts.workers) {
-    console.log(`  Logging in worker: ${acc.username}`);
-    const ctx = await state.browser.newContext();
+    console.log(`  Logging in worker (headless): ${acc.username}`);
+    const ctx = await workerBrowser.newContext();
     const wp  = await ctx.newPage();
     await ph.navigateToLobby(wp);
     await ph.login(wp, acc.username, acc.password);
@@ -61,8 +98,8 @@ async function boot(accounts) {
   // Start watching lobby chat on controller page
   state.stopChatWatch = ph.watchLobbyChat(state.controllerPage, handleChatMessage);
 
-  console.log('✅ All accounts ready.\n');
-  emit('boot', { workers: state.workerPages.map(w => w.username) });
+  console.log('✅ All accounts ready. Workers running headless.\n');
+  emit('boot', { workers: state.workerPages.map(w => w.username), channel });
 }
 
 // ── Chat handler ──────────────────────────────────────────
@@ -344,6 +381,10 @@ async function shutdown() {
   if (state.browser) {
     try { await state.browser.close(); } catch (_) {}
     state.browser = null;
+  }
+  if (state.workerBrowser) {
+    try { await state.workerBrowser.close(); } catch (_) {}
+    state.workerBrowser = null;
   }
 }
 
