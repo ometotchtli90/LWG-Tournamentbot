@@ -1,19 +1,18 @@
-// ── Tournament configuration ──────────────────────────────
-// Edit these values to customise tournament behaviour.
-
+'use strict';
 module.exports = {
-  signupKeyword:       "!join",
-  signupDurationMs:    120_000,     // 2 minutes
-  mapName:             "Ravaged",
-  gameNamePrefix:      "TOURNEY",
-  gamePassword:        "tourney2025",
+  signupKeyword:       '!join',
+  signupDurationMs:    5 * 60_000,   // 5 minutes
+  mapName:             'Ravaged',
+  gameNamePrefix:      'TOURNEY',
   minPlayers:          4,
-  maxPlayers:          16,
-  betweenMatchDelayMs: 15_000,
-  resultKeyword:       "!win",
-  joinWaitMs:          15 * 60_000, // 15 min for players to join hosted game
+  maxPlayers:          4,
+  betweenMatchDelayMs: 10_000,
+  resultKeyword:       '!win',
+  leaveKeyword:        '!leave',
+  joinWaitMs:          5 * 60_000,   // 5 minutes
   intruderKickMs:      10_000,
-  readyWaitMs:         60_000,
+  readyWaitMs:         5 * 60_000,   // 5 minutes
   ggWatchMs:           2 * 60_000,
-  lwgUrl:              "https://www.littlewargame.com/play/",
+  bracketFormat:       'single_elimination', // single_elimination | double_elimination
+  lwgUrl:              'https://www.littlewargame.com/play/',
 };

@@ -144,10 +144,28 @@ async function bootTournament() {
 
   try {
     const accounts = loadAccounts();
-    if (!accounts.controller?.password) throw new Error('Controller password not set in Settings');
+    const cfg       = require('./config');
 
-    const emptyWorkers = accounts.workers.filter(w => !w.password);
-    if (emptyWorkers.length) throw new Error(`Missing passwords for: ${emptyWorkers.map(w => w.username).join(', ')}`);
+    // ── Validation ────────────────────────────────────────
+    if (!accounts.controller?.username || !accounts.controller?.password) {
+      throw new Error('Controller account is missing username or password. Go to ⚙ Settings to fix this.');
+    }
+
+    const emptyWorkers = (accounts.workers || []).filter(w => !w.username || !w.password);
+    if (emptyWorkers.length) {
+      throw new Error(`These workers are missing credentials: ${emptyWorkers.map(w => w.username || '(unnamed)').join(', ')}. Check ⚙ Settings.`);
+    }
+
+    const needed  = Math.ceil(cfg.maxPlayers / 2);
+    const have    = (accounts.workers || []).length;
+    if (have < needed) {
+      throw new Error(
+        `Not enough worker accounts. ` +
+        `Max players is set to ${cfg.maxPlayers}, which needs ${needed} workers, ` +
+        `but only ${have} are configured. ` +
+        `Either add more workers in ⚙ Settings or reduce Max Players.`
+      );
+    }
 
     const controller = require('./controller');
     controller.setBroadcast(wsBroadcast);
@@ -189,8 +207,8 @@ function createWindow() {
 // ── App lifecycle ─────────────────────────────────────────
 app.whenReady().then(() => {
   startServer();
-  // Small delay so server is listening before window loads it
-  setTimeout(createWindow, 300);
+  // Wait for server to be listening before opening window
+  setTimeout(createWindow, 800);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

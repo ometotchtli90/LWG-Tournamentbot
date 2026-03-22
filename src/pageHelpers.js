@@ -7,22 +7,104 @@ async function navigateToLobby(page) {
   await page.goto(LWG_URL, { waitUntil: 'networkidle' });
 }
 
+// ── Dismiss first-visit popups ────────────────────────────
+// LWG shows two popups on fresh load:
+//  1. #patches-container (changelog) — dismissed by clicking anywhere outside it
+//  2. #infoWindow (Patreon support) — must click .closeButton to dismiss
+async function dismissPopups(page) {
+  // Step 1: Dismiss the #changelogDiv overlay.
+  // Structure: #changelogDiv > #changelogContents (the actual content)
+  // Clicking outside #changelogContents but on #changelogDiv dismisses it.
+  // Simplest reliable approach: just force-hide it via JS.
+  console.log('    Dismissing changelog...');
+  try {
+    await page.waitForSelector('#changelogDiv', { timeout: 10000 });
+    await page.waitForTimeout(300);
+
+    await page.evaluate(() => {
+      const div = document.getElementById('changelogDiv');
+      if (div) {
+        // Force hide — same effect as clicking outside
+        div.style.display = 'none';
+        div.style.visibility = 'hidden';
+        div.style.opacity = '0';
+        div.style.pointerEvents = 'none';
+      }
+    });
+
+    console.log('    Changelog hidden.');
+  } catch (_) {
+    console.log('    No changelog found, continuing...');
+  }
+  await page.waitForTimeout(300);
+
+  // Step 2: Close the Patreon infoWindow if it's visible
+  try {
+    const infoWindow = await page.$('#infoWindow');
+    if (infoWindow) {
+      // Click the X close button inside #infoWindow
+      const closeBtn = await infoWindow.$('button.closeButton');
+      if (closeBtn) {
+        await closeBtn.click();
+        console.log('    Closed Patreon popup.');
+        await page.waitForTimeout(400);
+      }
+    }
+  } catch (_) {}
+
+  // Step 3: Safety net — close any remaining .ingameWindow popups
+  try {
+    const remaining = await page.$$('.ingameWindow button.closeButton');
+    for (const btn of remaining) {
+      const visible = await btn.isVisible().catch(() => false);
+      if (visible) {
+        await btn.click().catch(() => {});
+        await page.waitForTimeout(200);
+      }
+    }
+  } catch (_) {}
+
+  console.log('    Popups cleared.');
+}
+
 // ── Login ─────────────────────────────────────────────────
 async function login(page, username, password) {
-  // Click the "Log in" button to open the login form
-  await page.waitForSelector('#loginPromptButton', { timeout: 15000 });
+  console.log(`    [${username}] Dismissing popups...`);
+  await dismissPopups(page);
+
+  console.log(`    [${username}] Clicking login button...`);
+  await page.waitForSelector('#loginPromptButton', { timeout: 10000 });
   await page.click('#loginPromptButton');
 
-  // Wait for login fields to appear
+  console.log(`    [${username}] Waiting for login form...`);
   await page.waitForSelector('#loginWindowUsername', { timeout: 10000 });
 
+  console.log(`    [${username}] Filling credentials...`);
   await page.fill('#loginWindowUsername', username);
   await page.fill('#loginWindowPassword', password);
   await page.keyboard.press('Enter');
 
-  // Wait until the player name display appears (confirms successful login)
+  console.log(`    [${username}] Waiting for login confirmation...`);
   await page.waitForSelector('#playerNameDisplay', { timeout: 20000 });
   console.log(`  ✓ Logged in as ${username}`);
+}
+
+// ── Get lobby status of a player from the online player list ─
+// Returns: 'lobby' | 'map lobby' | 'match' | null (not found)
+async function getPlayerLobbyStatus(page, username) {
+  return page.evaluate((name) => {
+    const list = document.getElementById('playersListOnline');
+    if (!list) return null;
+    for (const p of list.querySelectorAll('p.playerListPlayer')) {
+      const link = p.querySelector('a.playerNameInList');
+      if (link?.innerText?.trim().toLowerCase() === name.toLowerCase()) {
+        const label = p.querySelector('span.lobbyLabel');
+        if (!label) return 'lobby';
+        return label.innerText.replace(/[()]/g, '').trim().toLowerCase();
+      }
+    }
+    return null;
+  }, username);
 }
 
 // ── Detect own username from page ────────────────────────
@@ -36,8 +118,15 @@ async function sendLobbyChat(page, text) {
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) await page.waitForTimeout(400);
     const chunk = chunks[i].replace('55', '5 5');
-    await page.$eval('#lobbyChatInput', (el, val) => { el.value = val; }, chunk);
-    await page.keyboard.press('Enter');
+    // Focus the input, set value, then dispatch Enter on the element directly
+    await page.$eval('#lobbyChatInput', (el, val) => {
+      el.focus();
+      el.value = val;
+      el.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true, cancelable: true, key: 'Enter', keyCode: 13,
+      }));
+    }, chunk);
+    await page.waitForTimeout(150);
   }
 }
 
@@ -149,25 +238,74 @@ function watchLobbyChat(page, onMessage) {
   return () => clearInterval(iv);
 }
 
-// ── Watch in-game chat for lines (polling) ────────────────
+// ── Watch in-game chat via console message interception ──
+// LWG logs every chat message as:
+//   "Chat msg PlayerName: [to all] text"
+// We intercept this via Playwright's console event listener,
+// which is more reliable than polling the DOM.
 function watchGameChat(page, onLine) {
+  // Intercept LWG's own chat log: "Chat msg PlayerName: [to all] text"
+  // This fires instantly when a player sends a message in-game.
+  const handler = (msg) => {
+    if (msg.type() !== 'log') return; // ignore warnings/errors
+    const text = msg.text();
+    if (text.startsWith('Chat msg ')) {
+      // Strip the prefix: "Chat msg " → "PlayerName: [to all] text"
+      onLine(text.slice('Chat msg '.length));
+    }
+    // Ignore everything else — do NOT pass raw console lines
+  };
+  page.on('console', handler);
+
+  // DOM poller as fallback — only reads #chatHistorytextContainer
   let lastCount = 0;
   const iv = setInterval(async () => {
     try {
       const lines = await page.evaluate((since) => {
-        const el = document.getElementById('chatHistorytextContainer')
-                || document.querySelector('.textContainer[id*="chat"]');
+        const el = document.getElementById('chatHistorytextContainer');
         if (!el) return [];
         const ps = [...el.querySelectorAll('p')];
-        return ps.slice(since).map((p, i) => ({ text: p.innerText || p.textContent || '', idx: since + i }));
+        return ps.slice(since).map((p, i) => ({
+          text: p.innerText || p.textContent || '',
+          idx: since + i,
+        }));
       }, lastCount);
-
       for (const l of lines) {
-        onLine(l.text);
+        if (l.text.trim()) onLine(l.text);
         lastCount = Math.max(lastCount, l.idx + 1);
       }
     } catch (_) {}
-  }, 1000);
+  }, 500);
+
+  return () => {
+    page.off('console', handler);
+    clearInterval(iv);
+  };
+}
+
+// ── Watch game lobby chat (#lobbyGameChatTextArea) ──────────
+// Same structure as main lobby: span[id^="chat"] with a.playerNameInList
+function watchLobbyGameChat(page, onMessage) {
+  let lastCount = 0;
+  const iv = setInterval(async () => {
+    try {
+      const messages = await page.evaluate((since) => {
+        const area = document.getElementById('lobbyGameChatTextArea');
+        if (!area) return [];
+        const nodes = [...area.querySelectorAll('span[id^="chat"]')];
+        return nodes.slice(since).map((node, i) => ({
+          username: node.querySelector('a.playerNameInList')?.innerText?.trim() || null,
+          message:  (node.querySelector('span:last-child')?.innerText || '').replace(/^:\s*/, '').trim(),
+          idx:      since + i,
+        }));
+      }, lastCount);
+
+      for (const m of messages) {
+        if (m.username && m.message) onMessage(m.username, m.message);
+        lastCount = Math.max(lastCount, m.idx + 1);
+      }
+    } catch (_) {}
+  }, 300);
 
   return () => clearInterval(iv);
 }
@@ -212,6 +350,6 @@ function splitMessage(text, maxLen) {
 module.exports = {
   navigateToLobby, login, detectUsername,
   sendLobbyChat, sendGameChat, sendPrivateMessage,
-  watchLobbyChat, watchGameChat,
-  getSlotPlayers, kickPlayer,
+  watchLobbyChat, watchLobbyGameChat, watchGameChat,
+  getSlotPlayers, kickPlayer, getPlayerLobbyStatus,
 };

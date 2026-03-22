@@ -284,8 +284,13 @@
   }
 
   .field-row {
-    display: grid; grid-template-columns: 180px 1fr 1fr;
-    gap: 10px; align-items: center; margin-bottom: 10px;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px; margin-bottom: 10px;
+  }
+  .field-row-label {
+    grid-column: 1 / -1; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+    margin-bottom: 2px;
   }
   .field-label { font-size: 13px; color: var(--muted); }
 
@@ -319,7 +324,7 @@
 <div id="bootOverlay">
   <div class="spinner"></div>
   <div class="boot-label">Launching browsers…</div>
-  <div class="boot-sub">Opening 1 visible window (controller) + 4 invisible workers. ~20 seconds.</div>
+  <div class="boot-sub">Opening 1 visible window (controller) + headless workers. Dismissing LWG popups then logging in all accounts. ~30 seconds.</div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -335,7 +340,14 @@
       <div class="card-title">Tournament</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
         <button class="btn btn-blue btn-full" id="btnBoot" onclick="doBoot()">🚀 Launch Browsers</button>
+        <div id="bootWarning" style="display:none;margin-top:6px;padding:8px 10px;border-radius:6px;
+          background:#2d1a1a;border:1px solid var(--red);color:var(--red);font-size:11px;line-height:1.5;"></div>
         <button class="btn btn-gold btn-full" id="btnOpenSignup" onclick="cmd('openSignup')" disabled>▶ Open Signup</button>
+        <div id="signupTimer" style="display:none;text-align:center;padding:8px;border-radius:6px;
+          background:var(--surface2);border:1px solid var(--border);font-size:13px;">
+          <span id="signupTimerLabel" style="color:var(--gold);font-weight:700;font-size:16px;">2:00</span>
+          <span style="color:var(--muted);font-size:11px;margin-left:6px;">remaining</span>
+        </div>
         <button class="btn btn-ghost btn-full" id="btnCloseSignup" onclick="cmd('closeSignup')" disabled>⏹ Close Signup Early</button>
       </div>
       <div style="height:1px;background:var(--border);margin:10px 0;"></div>
@@ -344,7 +356,7 @@
         <button class="btn btn-ghost" style="flex:1;font-size:12px;min-width:0;" onclick="cmd('standings')">Standings</button>
       </div>
       <div style="margin-top:6px;">
-        <button class="btn btn-full" style="background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;font-size:12px;" onclick="doReset()">↺ Reset Tournament</button>
+        <button class="btn btn-full" style="background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;font-size:12px;" onclick="doReset()">✕ Cancel Tournament</button>
       </div>
     </div>
 
@@ -435,30 +447,49 @@
   <div class="card">
     <div class="settings-section-title">Controller Account</div>
     <div class="field-row">
-      <span class="field-label">Username</span>
-      <input id="ctrlUser" type="text" placeholder="TourneyMaster">
-      <input id="ctrlPass" type="password" placeholder="Password">
+      <div>
+        <div class="field-row-label">Username</div>
+        <input id="ctrlUser" type="text" placeholder="TourneyMaster" autocomplete="off">
+      </div>
+      <div>
+        <div class="field-row-label">Password</div>
+        <input id="ctrlPass" type="password" placeholder="••••••••" autocomplete="new-password">
+      </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="settings-section-title">Worker Accounts</div>
+    <div class="settings-section-title">
+      Worker Accounts
+      <button class="btn btn-ghost btn-sm" onclick="addWorkerField()" style="float:right;">+ Add Worker</button>
+    </div>
     <div id="workerFields"></div>
   </div>
 
   <div class="card">
     <div class="settings-section-title">Tournament Settings</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+
+      <div style="grid-column:1/-1;">
+        <div style="color:var(--muted);font-size:11px;margin-bottom:6px;">Bracket Format</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);">
+            <input type="radio" name="cfgFormat" id="fmtSE" value="single_elimination"> Single Elimination
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);">
+            <input type="radio" name="cfgFormat" id="fmtDE" value="double_elimination"> Double Elimination
+          </label>
+
+        </div>
+      </div>
+
       <div>
         <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Map Name</div>
         <input id="cfgMap" type="text">
       </div>
+
       <div>
-        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Game Password</div>
-        <input id="cfgPass" type="text">
-      </div>
-      <div>
-        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Signup Duration (seconds)</div>
+        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Signup Duration (minutes)</div>
         <input id="cfgSignup" type="text">
       </div>
       <div>
@@ -467,12 +498,18 @@
       </div>
       <div>
         <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Max Players</div>
-        <input id="cfgMax" type="text">
+        <input id="cfgMax" type="text" oninput="updateWorkerHint()">
       </div>
       <div>
         <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Join Wait (minutes)</div>
         <input id="cfgJoin" type="text">
       </div>
+
+      <div style="grid-column:1/-1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px;">Worker Account Requirement</div>
+        <div id="workerHint" style="font-size:13px;color:var(--text);">—</div>
+      </div>
+
     </div>
   </div>
 
@@ -486,8 +523,9 @@
 <script>
 // ── State ──────────────────────────────────────────────────
 let S = {
-  phase: 'idle', players: [], bracket: [], currentRound: 0,
-  activeMatches: {}, workers: [], log: [],
+  phase: 'idle', format: 'single_elimination', players: [],
+  bracket: null, activeMatches: {}, workers: [], log: [],
+  requiredWorkers: 2,
 };
 let booted = false;
 
@@ -497,7 +535,9 @@ function showScreen(name) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`screen${name.charAt(0).toUpperCase()+name.slice(1)}`).classList.add('active');
   document.getElementById(`nav${name.charAt(0).toUpperCase()+name.slice(1)}`).classList.add('active');
-  if (name === 'settings') loadSettingsForm();
+  if (name === 'settings') {
+    loadSettingsForm(); // only loads if settingsLoaded is false
+  }
 }
 
 // ── WebSocket ──────────────────────────────────────────────
@@ -507,6 +547,17 @@ function connectWS() {
   ws.onopen = () => {
     document.getElementById('connDot').classList.add('on');
     document.getElementById('connLabel').textContent = 'Connected';
+    // Fetch fresh state now that we're connected
+    fetch('/api/state').then(r => r.json()).then(snap => {
+      if (snap) {
+        S.phase   = snap.phase   || S.phase;
+        S.workers = snap.workers || S.workers;
+        S.bracket = snap.bracket || S.bracket;
+        S.activeMatches   = snap.activeMatches   || S.activeMatches;
+        S.requiredWorkers = snap.requiredWorkers || S.requiredWorkers;
+        render();
+      }
+    }).catch(() => {});
   };
   ws.onclose = () => {
     document.getElementById('connDot').classList.remove('on');
@@ -516,9 +567,10 @@ function connectWS() {
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'snapshot') {
-      S = { phase: msg.phase, players: msg.players || [], bracket: msg.bracket || [],
-            currentRound: msg.currentRound || 0, activeMatches: msg.activeMatches || {},
-            workers: msg.workers || [], log: msg.log || [] };
+      S = { phase: msg.phase, format: msg.format || 'single_elimination',
+            players: msg.players || [], bracket: msg.bracket || null,
+            activeMatches: msg.activeMatches || {}, workers: msg.workers || [],
+            log: msg.log || [], requiredWorkers: msg.requiredWorkers || 2 };
     } else {
       applyEvent(msg);
     }
@@ -528,16 +580,23 @@ function connectWS() {
 
 function applyEvent(msg) {
   switch (msg.type) {
-    case 'phase':         S.phase = msg.phase; if (msg.champion) S.champion = msg.champion; break;
+    case 'phase':         S.phase = msg.phase; if (msg.format) S.format = msg.format; if (msg.champion) S.champion = msg.champion; break;
     case 'player_joined': if (!S.players.includes(msg.username)) S.players.push(msg.username); break;
+    case 'player_left':   S.players = S.players.filter(p => p !== msg.username); break;
+    case 'signup_tick':
+      S.signupRemaining = msg.remaining;
+      renderSignupTimer();
+      break;
     case 'bracket':       S.bracket = msg.bracket; break;
     case 'match_start':   S.activeMatches[msg.gameName] = { p1: msg.p1, p2: msg.p2, worker: msg.worker }; break;
     case 'match_result':
     case 'match_error':   delete S.activeMatches[msg.gameName]; break;
     case 'reset':
-      S = { phase: 'idle', players: [], bracket: [], currentRound: 0,
-            activeMatches: {}, workers: S.workers, log: [], champion: null };
+      S = { phase: 'idle', format: S.format, players: [], bracket: null,
+            activeMatches: {}, workers: S.workers, log: [], champion: null,
+            requiredWorkers: S.requiredWorkers };
       booted = false;
+      settingsLoaded = false; // allow settings to reload after reset
       break;
   }
   S.log.push(msg);
@@ -545,8 +604,20 @@ function applyEvent(msg) {
 }
 
 // ── API ────────────────────────────────────────────────────
+async function fetchWithRetry(url, options, retries = 5, delayMs = 600) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch(url, options);
+      return r;
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      await new Promise(res => setTimeout(res, delayMs));
+    }
+  }
+}
+
 async function cmd(command, args = []) {
-  const r = await fetch('/api/cmd', {
+  const r = await fetchWithRetry('/api/cmd', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ cmd: command, args }),
@@ -561,22 +632,27 @@ async function doBoot() {
   document.getElementById('btnBoot').disabled = true;
   try {
     const r = await cmd('boot');
+    // Always hide overlay before any alert — overlay blocks all inputs
+    document.getElementById('bootOverlay').classList.remove('show');
     if (r.error) {
+      document.getElementById('btnBoot').disabled = false;
+      settingsLoaded = false;
+      renderButtons();
       alert('Boot failed: ' + r.error);
-      document.getElementById('btnBoot').disabled = false;  // re-enable on error
     } else {
       booted = true;
     }
   } catch (e) {
-    alert('Boot failed: ' + e.message);
-    document.getElementById('btnBoot').disabled = false;  // re-enable on error
-  } finally {
     document.getElementById('bootOverlay').classList.remove('show');
+    document.getElementById('btnBoot').disabled = false;
+    settingsLoaded = false;
+    renderButtons();
+    alert('Boot failed: ' + e.message);
   }
 }
 
 // ── Actions ────────────────────────────────────────────────
-function doReset() { if (confirm('Reset tournament?')) cmd('reset'); }
+function doReset() { if (confirm('Cancel the current tournament and return to idle?')) cmd('reset'); }
 
 function doAddPlayer() {
   const v = document.getElementById('inAddPlayer').value.trim();
@@ -591,6 +667,29 @@ function doForceWin() {
   if (v) { cmd('forceWin', [v]); document.getElementById('inForceWin').value = ''; }
 }
 function clearLog() { S.log = []; renderLog(); }
+
+// ── Signup timer ───────────────────────────────────────────
+function renderSignupTimer() {
+  const el    = document.getElementById('signupTimer');
+  const label = document.getElementById('signupTimerLabel');
+  if (!el || !label) return;
+
+  if (S.phase !== 'signup' || S.signupRemaining === undefined) {
+    el.style.display = 'none';
+    return;
+  }
+
+  el.style.display = 'block';
+  const rem  = Math.max(0, S.signupRemaining);
+  const mins = Math.floor(rem / 60000);
+  const secs = Math.floor((rem % 60000) / 1000);
+  label.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+
+  // Colour shifts: green → gold → red as time runs out
+  if (rem > 60000)      label.style.color = 'var(--green)';
+  else if (rem > 20000) label.style.color = 'var(--gold)';
+  else                  label.style.color = 'var(--red)';
+}
 
 // ── Render ─────────────────────────────────────────────────
 function render() {
@@ -614,12 +713,67 @@ function renderPhase() {
   } else {
     banner.style.display = 'none';
   }
+  // Hide timer if not in signup
+  if (S.phase !== 'signup') {
+    const timerEl = document.getElementById('signupTimer');
+    if (timerEl) timerEl.style.display = 'none';
+    S.signupRemaining = undefined;
+  }
+  renderSignupTimer();
 }
 
 function renderButtons() {
-  document.getElementById('btnBoot').disabled        = booted;
+  const warning    = validateBootConfig();
+  const bootBtn    = document.getElementById('btnBoot');
+  const warnEl     = document.getElementById('bootWarning');
+
+  bootBtn.disabled = booted || !!warning;
+  if (warnEl) {
+    if (warning && !booted) {
+      warnEl.textContent = '⚠ ' + warning;
+      warnEl.style.display = 'block';
+    } else {
+      warnEl.style.display = 'none';
+    }
+  }
+
   document.getElementById('btnOpenSignup').disabled  = !booted || S.phase !== 'idle';
   document.getElementById('btnCloseSignup').disabled = S.phase !== 'signup';
+}
+
+function validateBootConfig() {
+  if (!settingsLoaded) return null;
+
+  // Read from settings fields only if we're on the settings screen,
+  // otherwise use the last saved snapshot values to avoid reading stale/empty hidden inputs
+  const onSettings = document.getElementById('screenSettings')?.classList.contains('active');
+
+  let maxPlayers = 0;
+  let configured = 0;
+  let hasCtrlPass = true;
+
+  if (onSettings) {
+    const maxEl = document.getElementById('cfgMax');
+    maxPlayers  = maxEl ? parseInt(maxEl.value) || 0 : 0;
+    const workerRows = document.querySelectorAll('.worker-field-row');
+    configured = [...workerRows].filter(r => r.querySelector('.wUsername')?.value?.trim()).length;
+    const passEl = document.getElementById('ctrlPass');
+    hasCtrlPass  = !passEl || !!passEl.value;
+  } else {
+    // Use snapshot — these reflect what was last saved
+    configured = S.workers?.length || 0;
+    maxPlayers = S.requiredWorkers ? S.requiredWorkers * 2 : 0;
+    hasCtrlPass = true; // can't check password from tournament screen
+  }
+
+  if (!hasCtrlPass && !booted) {
+    return 'Controller password is not set. Go to ⚙ Settings.';
+  }
+  const needed = Math.ceil(maxPlayers / 2);
+  if (maxPlayers > 0 && configured > 0 && configured < needed) {
+    return `Max Players is ${maxPlayers} but only ${configured} worker(s) configured. Fix in ⚙ Settings.`;
+  }
+  return null;
 }
 
 function renderWorkers() {
@@ -657,25 +811,70 @@ function renderPlayers() {
 
 function renderBracket() {
   const el = document.getElementById('bracketArea');
-  if (!S.bracket?.length) { el.innerHTML = '<span style="color:var(--muted)">No bracket yet.</span>'; return; }
-  const total = S.bracket.length;
-  el.innerHTML = S.bracket.map((round, ri) => {
-    const name   = getRoundName(ri, total);
-    const cls    = ri < S.currentRound ? 'done' : ri === S.currentRound ? 'current' : 'future';
-    const matches = round.map(m => {
-      const p1 = m.p1 || 'TBD', p2 = m.p2 || 'TBD', w = m.winner;
-      const active = !w && p1 !== 'BYE' && p2 !== 'BYE' && ri === S.currentRound;
-      const slot = (name) => {
-        const isBye = name === 'BYE', isTbd = !name || name === 'TBD';
-        const sc = isBye ? 'bye' : isTbd ? 'tbd' : w === name ? 'winner' : w ? 'loser' : '';
-        return `<div class="match-slot ${sc}">${name}${w === name ? ' 🏆' : ''}</div>`;
-      };
-      return `<div class="match-card ${active ? 'active' : ''}">${slot(p1)}${slot(p2)}</div>`;
-    }).join('');
+  if (!S.bracket) { el.innerHTML = '<span style="color:var(--muted)">No bracket yet.</span>'; return; }
+
+  const fmt = S.bracket.format;
+  const active = Object.values(S.activeMatches || {}).map(a => a.matchId);
+
+  function matchCard(m) {
+    if (!m) return '';
+    const p1 = m.p1 || 'TBD', p2 = m.p2 || 'TBD', w = m.winner;
+    const isActive = active.includes(m.id) || (!w && p1 !== 'BYE' && p2 !== 'TBD' && p2 !== 'BYE');
+    const slot = (name) => {
+      const isBye = name === 'BYE', isTbd = !name || name === 'TBD';
+      const sc = isBye ? 'bye' : isTbd ? 'tbd' : w === name ? 'winner' : w ? 'loser' : '';
+      return `<div class="match-slot ${sc}">${name}${w === name ? ' 🏆' : ''}</div>`;
+    };
+    return `<div class="match-card ${isActive && !w ? 'active' : ''}">${slot(p1)}${slot(p2)}</div>`;
+  }
+
+  function roundCol(title, matches, cls) {
     return `<div class="bracket-round">
-      <div class="round-title ${cls}">${name}</div>${matches}
+      <div class="round-title ${cls}">${title}</div>
+      ${matches.map(matchCard).join('')}
     </div>`;
-  }).join('');
+  }
+
+  if (fmt === 'single_elimination') {
+    const total = S.bracket.rounds?.length || 1;
+    el.innerHTML = (S.bracket.rounds || []).map((round, ri) => {
+      const r   = total - ri;
+      const name = r===1?'Final':r===2?'Semis':r===3?'Quarters':`Round ${ri+1}`;
+      const cls  = round.every(m=>m.winner) ? 'done' : round.some(m=>!m.winner&&m.p1&&m.p2) ? 'current' : 'future';
+      return roundCol(name, round, cls);
+    }).join('');
+
+  } else if (fmt === 'double_elimination') {
+    let html = '<div style="display:flex;flex-direction:column;gap:20px;width:100%;">';
+
+    // Winner bracket
+    html += '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin-bottom:8px;">Winner Bracket</div>';
+    html += '<div style="display:flex;gap:14px;align-items:flex-start;overflow-x:auto;">';
+    (S.bracket.wb||[]).forEach((round, ri) => {
+      const cls = round.every(m=>m.winner) ? 'done' : round.some(m=>!m.winner&&m.p1&&m.p2) ? 'current' : 'future';
+      html += roundCol(`WB R${ri+1}`, round, cls);
+    });
+    html += '</div></div>';
+
+    // Loser bracket
+    html += '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--red);margin-bottom:8px;">Loser Bracket</div>';
+    html += '<div style="display:flex;gap:14px;align-items:flex-start;overflow-x:auto;">';
+    (S.bracket.lb||[]).forEach((round, ri) => {
+      const cls = round.every(m=>m.winner) ? 'done' : round.some(m=>!m.winner&&m.p1&&m.p2) ? 'current' : 'future';
+      html += roundCol(`LB R${ri+1}`, round, cls);
+    });
+    html += '</div></div>';
+
+    // Grand final
+    if (S.bracket.gf) {
+      const gf  = S.bracket.gf[0];
+      const cls = gf?.winner ? 'done' : gf?.p1 && gf?.p2 ? 'current' : 'future';
+      html += '<div style="display:flex;gap:14px;">' + roundCol('Grand Final', S.bracket.gf, cls) + '</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+
+  }
 }
 
 function renderActiveMatches() {
@@ -706,6 +905,7 @@ function fmtLog(e) {
   switch (e.type) {
     case 'boot':          return `Bot launched (${e.workers?.length || 0} workers · ${e.channel || 'chromium'})`;
     case 'browser_channel': return `Browser: ${e.channel}`;
+    case 'format':        return `Format set: ${e.format.replace(/_/g,' ')}`;
     case 'phase':         return `Phase → ${e.phase}${e.champion ? ' · Champion: ' + e.champion : ''}`;
     case 'player_joined': return `${e.username} joined (${e.count} total)`;
     case 'match_start':   return `Match: ${e.p1} vs ${e.p2} (${e.worker})`;
@@ -719,18 +919,18 @@ function fmtLog(e) {
   }
 }
 
-function getRoundName(ri, total) {
-  const r = total - ri;
-  if (r === 1) return 'Grand Final';
-  if (r === 2) return 'Semi-Finals';
-  if (r === 3) return 'Quarter-Finals';
-  return `Round ${ri + 1}`;
-}
+// Round names are now computed inline in renderBracket
 
 // ── Settings ───────────────────────────────────────────────
 let cfgCache = null;
 
+let settingsLoaded = false;
+
 async function loadSettingsForm() {
+  // Only load from server once — after that, keep whatever the user has typed
+  if (settingsLoaded) return;
+  settingsLoaded = true;
+
   const [accs, cfgRes] = await Promise.all([
     fetch('/api/accounts').then(r => r.json()).catch(() => null),
     fetch('/api/config').then(r => r.json()).catch(() => null),
@@ -740,47 +940,94 @@ async function loadSettingsForm() {
     document.getElementById('ctrlUser').value = accs.controller?.username || '';
     document.getElementById('ctrlPass').value = accs.controller?.password || '';
 
-    const wf = document.getElementById('workerFields');
     const workers = accs.workers || [];
-    wf.innerHTML = workers.map((w, i) => `
-      <div class="field-row" style="margin-bottom:10px;">
-        <span class="field-label">Worker ${i + 1}</span>
-        <input type="text"     id="wUser${i}" value="${w.username || ''}" placeholder="Username">
-        <input type="password" id="wPass${i}" value="${w.password || ''}" placeholder="Password">
-      </div>`).join('');
-    cfgCache = { workerCount: workers.length };
+    const wf = document.getElementById('workerFields');
+    // Only build worker fields if they don't exist yet (preserve typed values)
+    if (wf && wf.querySelectorAll('.worker-field-row').length === 0) {
+      wf.innerHTML = '';
+      workerFieldCount = 0;
+      workers.forEach((w) => addWorkerField(w.username, w.password));
+      if (!workers.length) { addWorkerField(); addWorkerField(); addWorkerField(); addWorkerField(); }
+    }
+    cfgCache = { workerCount: workers.length || 4 };
   }
 
   if (cfgRes) {
     document.getElementById('cfgMap').value    = cfgRes.mapName || '';
-    document.getElementById('cfgPass').value   = cfgRes.gamePassword || '';
-    document.getElementById('cfgSignup').value = (cfgRes.signupDurationMs || 120000) / 1000;
+
+    document.getElementById('cfgSignup').value = (cfgRes.signupDurationMs || 120000) / 60000;
     document.getElementById('cfgMin').value    = cfgRes.minPlayers || 4;
     document.getElementById('cfgMax').value    = cfgRes.maxPlayers || 16;
     document.getElementById('cfgJoin').value   = (cfgRes.joinWaitMs || 900000) / 60000;
+    // Set format radio
+    const fmt = cfgRes.bracketFormat || 'single_elimination';
+    const radio = document.querySelector(`input[name="cfgFormat"][value="${fmt}"]`);
+    if (radio) radio.checked = true;
+    updateWorkerHint();
   }
 }
 
+let workerFieldCount = 0;
+function addWorkerField(username = '', password = '') {
+  const i  = workerFieldCount++;
+  const wf = document.getElementById('workerFields');
+  const div = document.createElement('div');
+  div.className = 'worker-field-row field-row';
+  div.style.marginBottom = '10px';
+  div.innerHTML = `
+    <div>
+      <div class="field-row-label">Worker ${i + 1} Username</div>
+      <input type="text" class="wUsername" value="${username}" placeholder="TourneyBot${i+1}" autocomplete="off">
+    </div>
+    <div style="position:relative;">
+      <div class="field-row-label">Worker ${i + 1} Password
+        <button onclick="this.closest('.worker-field-row').remove();updateWorkerHint();"
+          style="float:right;background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0;">✕ Remove</button>
+      </div>
+      <input type="password" class="wPassword" value="${password}" placeholder="••••••••" autocomplete="new-password">
+    </div>`;
+  wf.appendChild(div);
+  updateWorkerHint();
+}
+
+function updateWorkerHint() {
+  // Don't run validation while user is actively typing in settings inputs
+  const active = document.activeElement;
+  const inSettings = active && (active.closest('#screenSettings') !== null);
+  if (!inSettings) renderButtons();
+  const max  = parseInt(document.getElementById('cfgMax')?.value) || 16;
+  const need = Math.ceil(max / 2);
+  const el   = document.getElementById('workerHint');
+  if (!el) return;
+  const current = document.querySelectorAll('.worker-field-row').length;
+  const ok      = current >= need;
+  el.innerHTML = `Max <strong>${max}</strong> players requires <strong style="color:var(--gold)">${need} worker accounts</strong>. ` +
+    `Currently configured: <strong style="color:${ok?'var(--green)':'var(--red)'};">${current}</strong>. ` +
+    (ok ? '' : `<span style="color:var(--red);font-size:11px;">Add ${need-current} more worker(s).</span>`);
+}
+
 async function saveSettings() {
-  const count = cfgCache?.workerCount || 4;
+  const workerRows = document.querySelectorAll('.worker-field-row');
   const accounts = {
     controller: {
       username: document.getElementById('ctrlUser').value.trim(),
       password: document.getElementById('ctrlPass').value,
     },
-    workers: Array.from({ length: count }, (_, i) => ({
-      username: document.getElementById(`wUser${i}`)?.value.trim() || '',
-      password: document.getElementById(`wPass${i}`)?.value || '',
-    })),
+    workers: [...workerRows].map(row => ({
+      username: row.querySelector('.wUsername')?.value.trim() || '',
+      password: row.querySelector('.wPassword')?.value || '',
+    })).filter(w => w.username),
   };
 
+  const selectedFmt = document.querySelector('input[name="cfgFormat"]:checked')?.value || 'single_elimination';
   const config = {
     mapName:          document.getElementById('cfgMap').value.trim(),
-    gamePassword:     document.getElementById('cfgPass').value.trim(),
-    signupDurationMs: parseFloat(document.getElementById('cfgSignup').value) * 1000,
+
+    signupDurationMs: parseFloat(document.getElementById('cfgSignup').value) * 60000,
     minPlayers:       parseInt(document.getElementById('cfgMin').value),
     maxPlayers:       parseInt(document.getElementById('cfgMax').value),
     joinWaitMs:       parseFloat(document.getElementById('cfgJoin').value) * 60000,
+    bracketFormat:    selectedFmt,
   };
 
   await Promise.all([
@@ -788,6 +1035,7 @@ async function saveSettings() {
     fetch('/api/config',   { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) }),
   ]);
 
+  settingsLoaded = false;  // allow reload after save to confirm persisted values
   const s = document.getElementById('saveStatus');
   s.classList.add('show');
   setTimeout(() => s.classList.remove('show'), 2500);
@@ -795,8 +1043,15 @@ async function saveSettings() {
 
 // ── Safety net poll ────────────────────────────────────────
 setInterval(async () => {
-  const snap = await fetch('/api/state').then(r => r.json()).catch(() => null);
-  if (snap) { S.workers = snap.workers; S.activeMatches = snap.activeMatches; render(); }
+  try {
+    const snap = await fetch('/api/state').then(r => r.json());
+    if (snap) {
+      S.workers       = snap.workers       || S.workers;
+      S.activeMatches = snap.activeMatches || S.activeMatches;
+      S.requiredWorkers = snap.requiredWorkers || S.requiredWorkers;
+      render();
+    }
+  } catch (_) {}
 }, 5000);
 
 // ── Init ───────────────────────────────────────────────────
