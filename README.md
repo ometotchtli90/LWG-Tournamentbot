@@ -1,4 +1,4 @@
-# 🏆 LWG Tournament Bot
+## LWG Tournament Bot
 
 > Fully automated single-elimination tournament manager for [LittleWarGame.com](https://www.littlewargame.com/play/)
 
@@ -6,11 +6,10 @@ A desktop app (Windows / macOS / Linux) that controls 5 browser accounts simulta
 
 ---
 
-## ✨ Features
+## Features
 
 - **One-click launch** — double-click the app, enter credentials in Settings, click Launch
 - **Automated match hosting** — worker bots create the game, select the map, wait for players, start, detect the winner
-- **Private messaging** — each player gets their match details via PM
 - **Winner detection** — GG in chat + disconnect monitoring
 - **Built-in Settings screen** — manage accounts and tournament config without editing any files
 - **Live bracket & event log** — everything updates in real time
@@ -18,7 +17,7 @@ A desktop app (Windows / macOS / Linux) that controls 5 browser accounts simulta
 
 ---
 
-## 🚀 Running the App
+## Running the App
 
 ### Option A — Download a release (recommended)
 
@@ -32,7 +31,7 @@ Download the installer for your platform from the [Releases](../../releases) pag
 
 Run the installer, open the app, go to **⚙ Settings**, fill in your account passwords, and click **Save**.
 
-### Option B — Run from source
+## Option B — Run from source
 
 **Requirements:** [Node.js v18+](https://nodejs.org/)
 
@@ -46,7 +45,7 @@ npm start
 
 ---
 
-## 🏗️ Building Installers
+## Building Installers
 
 ```bash
 npm run install-browsers   # must run before building
@@ -79,7 +78,7 @@ Credentials are saved to your OS app-data folder and never leave your machine.
 
 ---
 
-## ▶️ Running a Tournament
+## Running a Tournament
 
 1. Open the app → go to **⚙ Settings** → enter passwords → **Save**
 2. Go to **Tournament** tab → click **🚀 Launch Browsers**
@@ -90,41 +89,20 @@ Credentials are saved to your OS app-data folder and never leave your machine.
 
 ---
 
-## 💬 Player Chat Commands
+## Player Chat Commands
 
 | Command | Effect |
 |---------|--------|
 | `!join` | Register during signup |
+| `!leave` | Unregister during signup |
+| `!ready` | Starts the game, once both players typed it |
 | `!bracket` | Print bracket to chat |
 | `!standings` | Show alive / eliminated |
 | `!win PlayerName` | Manually report a result |
 
 ---
 
-## ⚙️ How a Match Works
-
-```
-Round announced: "⚔️ SEMI-FINALS — check your PMs!"
-
-PM → Player A: "⚔️ Your match: A vs B | Hosted by: TourneyBot2"
-PM → Player B: "⚔️ Your match: A vs B | Hosted by: TourneyBot2"
-
-TourneyBot2 (separate Chromium window):
-  ├─ Creates game, selects Ravaged map
-  ├─ Sets name + password, spectates
-  ├─ Waits for A and B to join (kicks anyone else after 10s)
-  ├─ "A vs B — type !ready to start"
-  ├─ "✅ Both ready! 1… 2… 3… 4… 5… FIGHT!"
-  ├─ Starts the game
-  ├─ Watches for "gg" (first 2 min) or player disconnect
-  └─ Reports result → bracket auto-updates
-
-"🏆 A wins! B conceded."
-```
-
----
-
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
@@ -137,6 +115,6 @@ TourneyBot2 (separate Chromium window):
 
 ---
 
-## 📄 License
+## License
 
 MIT
