@@ -297,17 +297,109 @@ function waitForWorkerStatus(username, expectedStatus, timeoutMs) {
 }
 
 function startMatch(match, worker, gameName) {
-  const statusCb = (s) => emit('match_status', { gameName, status: s, worker: worker.username });
+  const statusCb        = (s) => emit('match_status', { gameName, status: s, worker: worker.username });
+  const getPlayerStatus = (name) => ph.getPlayerLobbyStatus(state.controllerPage, name);
+
+  let matchResolved = false;
+
+  // ── Safety monitor ─────────────────────────────────────
+  // Polls player and worker statuses every 3s.
+  // Only activates after the worker reaches 'match' status (game running).
+  // When BOTH players AND the worker are back in 'lobby' after that,
+  // the game is over — resolve if worker hasn't already.
+  let workerSeenInMatch = false;
+  const safetyIv = setInterval(async () => {
+    if (matchResolved) { clearInterval(safetyIv); return; }
+    try {
+      const [s1, s2, sw] = await Promise.all([
+        getPlayerStatus(match.p1),
+        getPlayerStatus(match.p2),
+        getPlayerStatus(worker.username),
+      ]);
+      console.log(`  [safety] ${match.p1}=${s1} ${match.p2}=${s2} ${worker.username}=${sw}`);
+
+      // Wait until worker is confirmed in 'match' before checking for end
+      if (sw === 'match') workerSeenInMatch = true;
+      if (!workerSeenInMatch) return;
+
+      const workersBack  = sw === 'lobby' || sw === null;
+      const p1Back       = s1 !== 'match';
+      const p2Back       = s2 !== 'match';
+
+      if (workersBack && p1Back && p2Back && (s1 !== null || s2 !== null)) {
+        clearInterval(safetyIv);
+        if (matchResolved) return;
+        matchResolved = true;
+
+        // Determine loser — whoever left match first
+        // We can't know exact timing here so use status as proxy:
+        // null = disconnected (left abruptly), 'lobby' = left cleanly
+        // If one is null and other is lobby, null is the disconnecter = loser
+        let loser, method;
+        if (s1 === null && s2 !== null)      { loser = match.p1; method = 'disconnect'; }
+        else if (s2 === null && s1 !== null) { loser = match.p2; method = 'disconnect'; }
+        else if (s1 !== 'match' && s2 === 'match') { loser = match.p1; method = 'disconnect'; }
+        else if (s2 !== 'match' && s1 === 'match') { loser = match.p2; method = 'disconnect'; }
+        else {
+          // Both back in lobby — can't determine loser from status alone
+          console.log(`  [safety] Both players back in lobby but loser unclear — skipping auto-resolve`);
+          await chat(`⚠️ ${match.p1} vs ${match.p2} ended but result unclear. Use Force Win to advance.`);
+          worker.busy = false;
+          delete state.activeMatches[match.id];
+          emit('match_error', { gameName, error: 'result_unclear' });
+          return;
+        }
+
+        const winner = loser === match.p1 ? match.p2 : match.p1;
+        console.log(`  [safety] Auto-resolved: ${winner} wins, ${loser} loses (${method})`);
+        const wantsRematch = await offerRematch(match, winner, loser);
+        if (wantsRematch) {
+          // Re-run the match
+          matchResolved = false;
+          workerSeenInMatch = false;
+          worker.busy = true;
+          state.activeMatches[match.id] = { match, workerName: worker.username, gameName };
+          emit('match_start', { gameName, p1: match.p1, p2: match.p2, worker: worker.username, matchId: match.id });
+          startMatch(match, worker, gameName);
+          return;
+        }
+        worker.busy = false;
+        delete state.activeMatches[match.id];
+        await applyResult(match, winner, loser, method, gameName);
+      }
+    } catch (_) {}
+  }, 3000);
+
   workerMod.hostMatch(
     worker.page, worker.username, gameName, match.p1, match.p2,
-    statusCb
+    statusCb, getPlayerStatus
   ).then(async result => {
+    matchResolved = true;
+    clearInterval(safetyIv);
+
+    if (result.method === 'disconnect') {
+      // Offer winner a rematch before recording the result
+      const wantsRematch = await offerRematch(match, result.winner, result.loser);
+      if (wantsRematch) {
+        // Reset flags and re-run the match with the same worker
+        matchResolved = false;
+        workerSeenInMatch = false;
+        worker.busy = true;
+        state.activeMatches[match.id] = { match, workerName: worker.username, gameName };
+        emit('match_start', { gameName, p1: match.p1, p2: match.p2, worker: worker.username, matchId: match.id });
+        startMatch(match, worker, gameName);
+        return;
+      }
+    }
+
     worker.busy = false;
     delete state.activeMatches[match.id];
     await applyResult(match, result.winner, result.loser, result.method, gameName);
   }).catch(async err => {
-    worker.busy = false;
-    delete state.activeMatches[match.id];
+    matchResolved = true;
+    clearInterval(safetyIv);
+    if (worker.busy) worker.busy = false;
+    if (state.activeMatches[match.id]) delete state.activeMatches[match.id];
 
     if (err.message === 'join_timeout') {
       const p1Joined = err.p1Joined;
@@ -345,6 +437,42 @@ function startMatch(match, worker, gameName) {
       await chat(`🚨 ${match.p1} vs ${match.p2}: ${reason}. Use Force Win to advance manually.`);
       emit('match_error', { gameName, error: reason });
     }
+  });
+}
+
+// ── Offer rematch after a disconnect ────────────────────
+// Asks the winner in lobby chat if they want a rematch.
+// Waits up to 60s for them to type !yes or !no.
+// Returns true = rematch, false = confirm the win.
+async function offerRematch(match, winner, loser) {
+  await chat(
+    `❓ ${loser} disconnected. ${winner} — do you want a rematch? ` +
+    `Type !yes for a rematch or !no to take the win. (60s to decide)`
+  );
+
+  return new Promise(resolve => {
+    const winnerLower = winner.toLowerCase();
+    const timeout     = setTimeout(() => {
+      stopWatch();
+      chat(`⏱ No response from ${winner} — win confirmed.`);
+      resolve(false);
+    }, 60000);
+
+    const stopWatch = ph.watchLobbyChat(state.controllerPage, (username, message) => {
+      if (username.toLowerCase() !== winnerLower) return;
+      const msg = message.trim().toLowerCase();
+      if (msg === '!yes') {
+        clearTimeout(timeout);
+        stopWatch();
+        chat(`🔄 Rematch accepted! Hosting again for ${match.p1} vs ${match.p2}...`);
+        resolve(true);
+      } else if (msg === '!no') {
+        clearTimeout(timeout);
+        stopWatch();
+        chat(`✅ ${winner} takes the win!`);
+        resolve(false);
+      }
+    });
   });
 }
 

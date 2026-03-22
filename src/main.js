@@ -46,10 +46,31 @@ function saveAccounts(data) {
 }
 
 // ── Express + WebSocket server ────────────────────────────
+// Load persisted config overrides (saved by the settings screen)
+function loadConfigOverrides() {
+  try {
+    const fs       = require('fs');
+    const path     = require('path');
+    const electron = require('electron');
+    const userApp  = electron.app;
+    const dataDir  = userApp ? userApp.getPath('userData') : path.join(__dirname, '..');
+    const cfgPath  = path.join(dataDir, 'config-override.json');
+    if (fs.existsSync(cfgPath)) {
+      const overrides = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+      const cfg = require('./config');
+      Object.assign(cfg, overrides);
+      console.log('Loaded config overrides:', overrides);
+    }
+  } catch (e) {
+    console.warn('Could not load config overrides:', e.message);
+  }
+}
+
 function startServer() {
   if (serverStarted) return;
   serverStarted = true;
 
+  loadConfigOverrides();
   const expressApp = express();
   const server     = http.createServer(expressApp);
   wss = new WebSocketServer({ server });
@@ -80,6 +101,17 @@ function startServer() {
     try {
       const cfg = require('./config');
       Object.assign(cfg, req.body);
+
+      // Persist to disk so changes survive restarts
+      try {
+        const fs       = require('fs');
+        const path     = require('path');
+        const electron = require('electron');
+        const userApp  = electron.app;
+        const dataDir  = userApp ? userApp.getPath('userData') : path.join(__dirname, '..');
+        fs.writeFileSync(path.join(dataDir, 'config-override.json'), JSON.stringify(cfg, null, 2));
+      } catch (pe) { console.warn('Config persist failed:', pe.message); }
+
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });

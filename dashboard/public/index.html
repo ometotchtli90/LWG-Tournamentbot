@@ -956,8 +956,8 @@ async function loadSettingsForm() {
     document.getElementById('cfgMap').value    = cfgRes.mapName || '';
 
     document.getElementById('cfgSignup').value = (cfgRes.signupDurationMs || 120000) / 60000;
-    document.getElementById('cfgMin').value    = cfgRes.minPlayers || 4;
-    document.getElementById('cfgMax').value    = cfgRes.maxPlayers || 16;
+    document.getElementById('cfgMin').value    = cfgRes.minPlayers ?? 4;
+    document.getElementById('cfgMax').value    = cfgRes.maxPlayers ?? 4;
     document.getElementById('cfgJoin').value   = (cfgRes.joinWaitMs || 900000) / 60000;
     // Set format radio
     const fmt = cfgRes.bracketFormat || 'single_elimination';
@@ -1032,7 +1032,8 @@ async function saveSettings() {
 
   await Promise.all([
     fetch('/api/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(accounts) }),
-    fetch('/api/config',   { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) }),
+    fetch('/api/config',   { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) })
+      .then(r => r.json()).then(r => { if (!r.ok) console.error('Config save failed:', r); else console.log('Config saved:', config); }),
   ]);
 
   settingsLoaded = false;  // allow reload after save to confirm persisted values

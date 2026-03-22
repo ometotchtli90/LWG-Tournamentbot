@@ -6,7 +6,7 @@ const ph  = require('./pageHelpers');
 // ── Host a single tournament match ────────────────────────
 // Returns { winner, loser, method } or throws on fatal error.
 
-async function hostMatch(page, workerName, gameName, p1, p2, onStatus) {
+async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayerStatus) {
   const log    = (msg) => console.log(`  [${workerName}] ${msg}`);
   const status = (s)   => { log(s); onStatus && onStatus(s); };
 
@@ -41,10 +41,18 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus) {
   await page.waitForTimeout(2000);
 
   // ── 3. Click the map button ──────────────────────────────
-  log('Selecting map...');
+  // Button text format: "MapName [playerCount]" — match exactly on name before the "["
+  log(`Selecting map: "${cfg.mapName}"...`);
   const mapBtn = await page.waitForFunction((name) => {
-    const btns = [...document.querySelectorAll('button.mapButton')];
-    return btns.find(b => b.innerText?.trim().startsWith(name)) || null;
+    const btns = [...document.querySelectorAll('button.mapButton, button.mapButtonMod')];
+    return btns.find(b => {
+      // Get only the first text node (before the <br> and <img>)
+      const firstTextNode = [...b.childNodes].find(n => n.nodeType === Node.TEXT_NODE);
+      const label = (firstTextNode?.textContent || b.innerText || '').trim();
+      // Strip the player count "[N]" suffix and compare
+      const mapName = label.replace(/\s*\[\d+\]\s*$/, '').trim();
+      return mapName === name;
+    }) || null;
   }, cfg.mapName, { timeout: 8000 });
   await mapBtn.click();
   await page.waitForTimeout(1500);
@@ -123,7 +131,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus) {
 
   // ── 9. Watch for result ──────────────────────────────────
   log('Watching for result...');
-  const result = await watchForResult(page, p1, p2);
+  const result = await watchForResult(page, p1, p2, getPlayerStatus);
   log(`Result: winner=${result.winner} method=${result.method}`);
 
   // ── 10. Leave the game ────────────────────────────────────
@@ -260,53 +268,92 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
 }
 
 // ── Watch for game result ────────────────────────────────
-// LWG console format: "Chat msg PlayerName: [to all] messagetext"
-// We extract the sender name and message body separately,
-// then check if the sender is p1 or p2 and if the body is "gg".
-function watchForResult(page, p1, p2) {
+// Two detection methods run in parallel:
+//  1. Chat: "gg" typed by p1 or p2 → that player is the loser
+//  2. Status poll: first player whose status leaves 'match' is the loser
+//     (catches disconnects and rage-quits without gg)
+// getPlayerStatus(name) → 'match' | 'map lobby' | 'lobby' | null
+function watchForResult(page, p1, p2, getPlayerStatus) {
   return new Promise(resolve => {
-    const p1l    = p1.toLowerCase(), p2l = p2.toLowerCase();
-    let ggLoser  = null;
-    let timer    = null;
-    let resolved = false;
+    const p1l     = p1.toLowerCase(), p2l = p2.toLowerCase();
+    let ggLoser   = null;
+    let resolved  = false;
+    let ggTimer   = null;
 
-    function doResolve() {
+    function doResolve(loser, method) {
       if (resolved) return;
       resolved = true;
-      stopWatch();
-      const loser  = ggLoser || p2;
+      stopChat();
+      clearInterval(statusIv);
+      if (ggTimer) clearTimeout(ggTimer);
       const winner = loser.toLowerCase() === p1l ? p2 : p1;
-      resolve({ winner, loser, method: 'gg' });
+      console.log(`  [watchForResult] Result: ${winner} wins, ${loser} loses (${method})`);
+      resolve({ winner, loser, method });
     }
 
-    const stopWatch = ph.watchGameChat(page, (line) => {
-      if (!line.trim() || resolved || timer) return;
-
-      // Parse: "PlayerName: [to all] messagetext"
-      // Sender is everything before the first ":"
-      const colonIdx   = line.indexOf(':');
+    // ── Method 1: gg in chat ─────────────────────────────
+    const stopChat = ph.watchGameChat(page, (line) => {
+      if (!line.trim() || resolved || ggTimer) return;
+      const colonIdx = line.indexOf(':');
       if (colonIdx < 0) return;
-      const sender     = line.slice(0, colonIdx).trim().toLowerCase();
-      const rest       = line.slice(colonIdx + 1).trim(); // "[to all] messagetext"
-
-      // Extract message body — after the last "] "
+      const sender   = line.slice(0, colonIdx).trim().toLowerCase();
+      const rest     = line.slice(colonIdx + 1).trim();
       const bracketIdx = rest.lastIndexOf('] ');
-      const msgBody    = bracketIdx >= 0 ? rest.slice(bracketIdx + 2).trim().toLowerCase() : rest.trim().toLowerCase();
-
+      const msgBody  = (bracketIdx >= 0 ? rest.slice(bracketIdx + 2) : rest).trim().toLowerCase();
       console.log(`  [${p1}v${p2}] ${sender}: "${msgBody.slice(0, 60)}"`);
-
-      // Check if message is "gg" (allow "gg!", "gg.", "gg " etc but not "eggs")
       const isGG = /^gg[^a-z]*$/.test(msgBody);
       if (!isGG) return;
-
-      // Check who sent it — must be p1 or p2, first one to write wins
       if (sender === p1l)      ggLoser = p1;
       else if (sender === p2l) ggLoser = p2;
-      else return; // someone else typed gg — ignore
-
-      console.log(`  [watchForResult] ${ggLoser} typed gg — they lose. Leaving in 5s.`);
-      timer = setTimeout(doResolve, 5000);
+      else return;
+      console.log(`  [watchForResult] ${ggLoser} typed gg — resolving in 5s`);
+      ggTimer = setTimeout(() => doResolve(ggLoser, 'gg'), 5000);
     });
+
+    // ── Method 2: status poll via controller page ────────
+    // Track when each player was last seen in 'match'
+    const lastSeen = { [p1l]: null, [p2l]: null };
+    const leftAt   = { [p1l]: null, [p2l]: null };
+
+    const statusIv = getPlayerStatus ? setInterval(async () => {
+      if (resolved) { clearInterval(statusIv); return; }
+      try {
+        const s1 = await getPlayerStatus(p1);
+        const s2 = await getPlayerStatus(p2);
+        const now = Date.now();
+
+        // Log status changes
+        if (s1 !== lastSeen[p1l]) {
+          console.log(`  [status] ${p1}: ${lastSeen[p1l]} → ${s1}`);
+          lastSeen[p1l] = s1;
+          // If they just left 'match' (or disappeared), record when
+          if (s1 !== 'match') leftAt[p1l] = now;
+        }
+        if (s2 !== lastSeen[p2l]) {
+          console.log(`  [status] ${p2}: ${lastSeen[p2l]} → ${s2}`);
+          lastSeen[p2l] = s2;
+          if (s2 !== 'match') leftAt[p2l] = now;
+        }
+
+        // Only trigger if at least one player was confirmed 'match' first
+        // (avoids false positives at the start before game loads)
+        const bothSeenInGame = lastSeen[p1l] !== null || lastSeen[p2l] !== null;
+        if (!bothSeenInGame) return;
+
+        const p1Left = leftAt[p1l] !== null;
+        const p2Left = leftAt[p2l] !== null;
+
+        if (p1Left && p2Left) {
+          // Both left — whoever left first is the loser
+          const loser = leftAt[p1l] <= leftAt[p2l] ? p1 : p2;
+          doResolve(loser, 'disconnect');
+        } else if (p1Left && !p2Left) {
+          doResolve(p1, 'disconnect');
+        } else if (p2Left && !p1Left) {
+          doResolve(p2, 'disconnect');
+        }
+      } catch (_) {}
+    }, 2000) : null;
   });
 }
 
