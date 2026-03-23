@@ -5,6 +5,7 @@ const cfg          = require('./config');
 const ph           = require('./pageHelpers');
 const workerMod    = require('./worker');
 const B            = require('./bracket');
+const lb           = require('./leaderboardClient');
 
 // ── Launch browser (Chrome → Edge → Chromium fallback) ────
 async function launchBrowser(headless = false) {
@@ -32,6 +33,7 @@ const state = {
   format:         'single_elimination',
   players:        [],
   bracket:        null,
+  tournamentId:   null,
   activeMatches:  {},       // matchId → { match, workerName, gameName }
   log:            [],
 
@@ -207,6 +209,9 @@ async function closeSignup() {
 
 // ── Build tournament ──────────────────────────────────────
 async function buildTournament() {
+  // Generate a unique tournament ID
+  state.tournamentId = `T-${Date.now()}`;
+
   switch (state.format) {
     case 'double_elimination':
       state.bracket = B.buildDoubleElim(state.players);
@@ -222,6 +227,16 @@ async function buildTournament() {
   emit('bracket', { bracket: state.bracket });
 
   await chat(`🏆 Bracket ready! ${state.players.length} players · ${state.format.replace(/_/g,' ')}`);
+
+  // Push to leaderboard VPS
+  lb.tournamentStart({
+    id:      state.tournamentId,
+    name:    `Tournament ${new Date().toLocaleDateString()}`,
+    format:  state.format,
+    players: state.players,
+    bracket: state.bracket,
+  });
+
   dispatchReadyMatches();
 }
 
@@ -485,6 +500,8 @@ function getFreeWorker() {
 // ── Apply result ──────────────────────────────────────────
 async function applyResult(match, winner, loser, method, gameName) {
   B.applyWin(state.bracket, match, winner);
+  // Auto-resolve any BYE matches that became available after this result
+  B.resolvePendingByes(state.bracket);
 
   // Build announcement depending on format
   const fmt    = state.bracket.format;
@@ -511,6 +528,16 @@ async function applyResult(match, winner, loser, method, gameName) {
   emit('match_result', { gameName, winner, loser, method, matchId: match.id });
   emit('bracket',      { bracket: state.bracket });
 
+  // Push match result to leaderboard VPS
+  lb.matchResult({
+    tournamentId: state.tournamentId,
+    matchId:      match.id,
+    round:        B.getRoundName(match, state.bracket),
+    p1: match.p1, p2: match.p2,
+    winner, loser, method,
+    bracket: state.bracket,
+  });
+
   // Check tournament complete
   if (B.isComplete(state.bracket)) {
     const champ = B.champion(state.bracket);
@@ -518,6 +545,12 @@ async function applyResult(match, winner, loser, method, gameName) {
     await ph.sendPrivateMessage(state.controllerPage, champ, `🥇 You are the TOURNAMENT CHAMPION!`);
     state.phase = 'done';
     emit('phase', { phase: 'done', champion: champ });
+
+    // Determine 2nd and 3rd from eliminated list (last two eliminated = 3rd, 2nd)
+    const elim   = [...(state.bracket.eliminated || [])];
+    const second = elim[elim.length - 1] || null;
+    const third  = elim[elim.length - 2] || null;
+    lb.tournamentEnd({ id: state.tournamentId, champion: champ, second, third, bracket: state.bracket });
     return;
   }
 

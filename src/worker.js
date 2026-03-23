@@ -80,12 +80,15 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   log(`Waiting up to ${cfg.joinWaitMs / 60000}m for ${p1} & ${p2}...`);
   const joinResult = await waitForCorrectPlayers(page, workerName, p1, p2, cfg.joinWaitMs, onStatus);
   if (!joinResult.ok) {
-    // Leave the hosted game via Back button before throwing
+    // Leave the game lobby via the Back button in #gameLobbyWindow
     try {
-      await page.waitForSelector('#backButton', { timeout: 5000 });
-      await page.click('#backButton');
+      await page.waitForSelector('#gameLobbyWindow #backButton', { timeout: 5000 });
+      await page.click('#gameLobbyWindow #backButton');
       await page.waitForTimeout(1000);
-    } catch (_) {}
+    } catch (_) {
+      // Fallback: try any backButton
+      try { await page.click('#backButton'); await page.waitForTimeout(1000); } catch (_) {}
+    }
 
     // Throw a structured error so controller can handle each scenario
     const err = new Error('join_timeout');
@@ -117,13 +120,13 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   status('game_started');
 
   // ── Send gg hint via in-game chat ────────────────────────
-  // Press Enter to open the in-game chat input, type the message, press Enter to send
+  // Click the chat input directly (worker is spectator, keyboard focus unreliable)
   try {
     await page.waitForTimeout(2000); // let game fully load first
-    await page.keyboard.press('Enter'); // open chat input
-    await page.waitForSelector('#ingameChatInput', { timeout: 3000 });
+    await page.waitForSelector('#ingameChatInput', { timeout: 5000 });
+    await page.click('#ingameChatInput');
     await page.fill('#ingameChatInput', '💡 When you lose, please type "gg" before leaving!');
-    await page.keyboard.press('Enter'); // send
+    await page.keyboard.press('Enter');
     log('gg hint sent in-game.');
   } catch (_) {
     log('Could not send gg hint in-game — continuing.');
@@ -194,13 +197,30 @@ function waitForCorrectPlayers(page, workerName, p1, p2, timeoutMs, onStatus) {
     const intruderTimers = {};
     const start          = Date.now();
     let lastP1 = false, lastP2 = false;
+    let lastReminderMin  = 0; // track which minute reminder was last sent
 
     const iv = setInterval(async () => {
-      if (Date.now() - start > timeoutMs) {
+      const elapsed   = Date.now() - start;
+      const remaining = timeoutMs - elapsed;
+
+      if (elapsed > timeoutMs) {
         clearInterval(iv);
         Object.values(intruderTimers).forEach(clearTimeout);
         resolve({ ok: false, p1Joined: lastP1, p2Joined: lastP2 });
         return;
+      }
+
+      // Send a reminder in game lobby chat every full minute elapsed
+      const elapsedMins = Math.floor(elapsed / 60000);
+      if (elapsedMins > 0 && elapsedMins !== lastReminderMin) {
+        lastReminderMin = elapsedMins;
+        const remainMins = Math.ceil(remaining / 60000);
+        const joined = [lastP1 ? p1 : null, lastP2 ? p2 : null].filter(Boolean);
+        const waiting = [!lastP1 ? p1 : null, !lastP2 ? p2 : null].filter(Boolean);
+        const msg = waiting.length
+          ? `⏳ Still waiting for ${waiting.join(' and ')} to join. ${remainMins} minute${remainMins !== 1 ? 's' : ''} left.`
+          : `⏳ Both players joined — waiting for !ready. ${remainMins} minute${remainMins !== 1 ? 's' : ''} left.`;
+        ph.sendGameChat(page, msg).catch(() => {});
       }
 
       let slots;
@@ -307,6 +327,8 @@ function watchForResult(page, p1, p2, getPlayerStatus) {
       else if (sender === p2l) ggLoser = p2;
       else return;
       console.log(`  [watchForResult] ${ggLoser} typed gg — resolving in 5s`);
+      // Stop status poll immediately — gg has absolute priority over disconnect detection
+      if (statusIv) clearInterval(statusIv);
       ggTimer = setTimeout(() => doResolve(ggLoser, 'gg'), 5000);
     });
 
@@ -316,7 +338,7 @@ function watchForResult(page, p1, p2, getPlayerStatus) {
     const leftAt   = { [p1l]: null, [p2l]: null };
 
     const statusIv = getPlayerStatus ? setInterval(async () => {
-      if (resolved) { clearInterval(statusIv); return; }
+      if (resolved || ggTimer) { clearInterval(statusIv); return; } // gg already detected — don't override
       try {
         const s1 = await getPlayerStatus(p1);
         const s2 = await getPlayerStatus(p2);

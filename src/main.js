@@ -201,6 +201,14 @@ async function bootTournament() {
 
     const controller = require('./controller');
     controller.setBroadcast(wsBroadcast);
+
+    // Configure leaderboard client if URL is set
+    if (accounts.leaderboard?.url) {
+      const lb = require('./leaderboardClient');
+      lb.configure(accounts.leaderboard.url, accounts.leaderboard.secret);
+      console.log(`  Leaderboard: ${accounts.leaderboard.url}`);
+    }
+
     await controller.boot(accounts);
   } finally {
     // Always reset the flag so the button works again after errors

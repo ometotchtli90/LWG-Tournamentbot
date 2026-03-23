@@ -418,9 +418,44 @@ function getRoundName(match, bracket) {
   return '';
 }
 
+// ── Auto-resolve any BYE matches that became ready ───────
+// Call this after every applyWin to propagate BYEs in later rounds.
+function resolvePendingByes(bracket) {
+  let resolved = true;
+  while (resolved) {
+    resolved = false;
+    const fmt = bracket.format;
+    if (fmt === 'single_elimination') {
+      for (const round of bracket.rounds) {
+        for (const m of round) {
+          if (!m.winner && (m.p1 === 'BYE' || m.p2 === 'BYE') && (m.p1 || m.p2)) {
+            const winner = m.p1 === 'BYE' ? m.p2 : m.p1;
+            if (winner && winner !== 'BYE') {
+              applyWinSingle(bracket, m, winner);
+              resolved = true;
+            }
+          }
+        }
+      }
+    } else if (fmt === 'double_elimination') {
+      const allRounds = [...(bracket.wb || []), ...(bracket.lb || []), bracket.gf || []].flat();
+      for (const m of allRounds) {
+        if (!m || m.winner) continue;
+        if ((m.p1 === 'BYE' || m.p2 === 'BYE') && (m.p1 || m.p2)) {
+          const winner = m.p1 === 'BYE' ? m.p2 : m.p1;
+          if (winner && winner !== 'BYE') {
+            applyWinDouble(bracket, m, winner);
+            resolved = true;
+          }
+        }
+      }
+    }
+  }
+}
+
 module.exports = {
   buildSingleElim, autoByesSingle,
   buildDoubleElim, autoByesDouble,
   readyMatches, applyWin, isComplete, champion,
-  getRoundName, requiredWorkers, shuffle,
+  getRoundName, requiredWorkers, shuffle, resolvePendingByes,
 };
