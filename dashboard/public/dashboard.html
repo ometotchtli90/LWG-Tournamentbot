@@ -387,6 +387,12 @@
       <div style="margin-top:6px;">
         <button class="btn btn-full" style="background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;font-size:12px;" onclick="doReset()">✕ Cancel Tournament</button>
       </div>
+
+      <div style="height:1px;background:var(--border);margin:10px 0;"></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="doExport()">📥 Export</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;" id="btnPublish" onclick="doPublish()">🚀 Publish</button>
+      </div>
     </div>
 
     <!-- Add / remove / force win — one card -->
@@ -556,6 +562,33 @@
     </div>
   </div>
 
+  <div class="card">
+    <div class="settings-section-title">GitHub Leaderboard <span style="font-size:10px;color:var(--muted);font-weight:400;">(optional — auto-publish after each tournament)</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="grid-column:1/-1;">
+        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Local Repo Directory <span style="color:var(--muted);font-weight:400;">(absolute path to your cloned repo)</span></div>
+        <input id="ghRepoDir" type="text" placeholder="C:\Users\You\my-leaderboard-repo">
+      </div>
+      <div>
+        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Branch</div>
+        <input id="ghBranch" type="text" placeholder="main">
+      </div>
+      <div>
+        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Output filename</div>
+        <input id="ghFilename" type="text" placeholder="index.html">
+      </div>
+      <div style="grid-column:1/-1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px;">Setup (one-time)</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.6;">
+          1. Clone your GitHub repo locally<br>
+          2. Configure git auth (SSH key or <code style="background:var(--border);padding:1px 4px;border-radius:3px;">git config credential.helper store</code>)<br>
+          3. Enter the local repo path above — bot will commit &amp; push after each tournament<br>
+          4. Your server just runs <code style="background:var(--border);padding:1px 4px;border-radius:3px;">git pull</code> on a cron or webhook
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="save-row">
     <button class="btn btn-gold" onclick="saveSettings()">Save Settings</button>
     <span class="save-status" id="saveStatus">✓ Saved</span>
@@ -709,6 +742,27 @@ async function doBoot() {
 
 // ── Actions ────────────────────────────────────────────────
 function doReset() { if (confirm('Cancel the current tournament and return to idle?')) cmd('reset'); }
+
+async function doPublish() {
+  const btn = document.getElementById('btnPublish');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publishing…'; }
+  try {
+    const r = await cmd('publishLeaderboard');
+    if (r.error) { alert('Publish failed: ' + r.error); }
+    else if (r.pushed === false) { alert('Nothing changed — leaderboard is already up to date.'); }
+    else { alert('✅ Leaderboard published to GitHub!'); }
+  } catch(e) { alert('Publish error: ' + e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🚀 Publish'; } }
+}
+
+async function doExport() {
+  const r = await cmd('exportLeaderboard');
+  if (r.error) { alert('Export failed: ' + r.error); return; }
+  // Open the exported file in the default browser
+  // path is a local file path — convert to file:// URL
+  const url = 'file:///' + r.path.replace(/\\/g, '/');
+  window.open(url, '_blank');
+}
 
 function doAddPlayer() {
   const v = document.getElementById('inAddPlayer').value.trim();
@@ -1048,6 +1102,11 @@ async function loadSettingsForm() {
       document.getElementById('lbUrl').value    = accs.leaderboard.url    || '';
       document.getElementById('lbSecret').value = accs.leaderboard.secret || '';
     }
+    if (accs.github) {
+      document.getElementById('ghRepoDir').value  = accs.github.repoDir   || '';
+      document.getElementById('ghBranch').value   = accs.github.branch    || 'main';
+      document.getElementById('ghFilename').value = accs.github.filename  || 'index.html';
+    }
   }
 
   if (cfgRes) {
@@ -1119,6 +1178,11 @@ async function saveSettings() {
     leaderboard: lbUrl ? {
       url:    lbUrl,
       secret: document.getElementById('lbSecret')?.value || '',
+    } : null,
+    github: document.getElementById('ghRepoDir')?.value?.trim() ? {
+      repoDir:  document.getElementById('ghRepoDir').value.trim(),
+      branch:   document.getElementById('ghBranch')?.value?.trim()   || 'main',
+      filename: document.getElementById('ghFilename')?.value?.trim() || 'index.html',
     } : null,
   };
 

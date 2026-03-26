@@ -79,7 +79,7 @@ function startServer() {
 
   const publicDir = path.join(__dirname, '..', 'dashboard', 'public');
   expressApp.use(express.static(publicDir));
-  expressApp.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+  expressApp.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'dashboard.html')));
 
   // Accounts API
   expressApp.get('/api/accounts', (_req, res) => res.json(loadAccounts()));

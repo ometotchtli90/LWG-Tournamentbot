@@ -6,7 +6,7 @@ const ph  = require('./pageHelpers');
 // ── Host a single tournament match ────────────────────────
 // Returns { winner, loser, method } or throws on fatal error.
 
-async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayerStatus) {
+async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayerStatus, onResultKnown, cancelToken, replayOpts = {}) {
   const log    = (msg) => console.log(`  [${workerName}] ${msg}`);
   const status = (s)   => { log(s); onStatus && onStatus(s); };
 
@@ -134,7 +134,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   // ── 9. Watch for result ──────────────────────────────────
   log('Watching for result...');
-  const result = await watchForResult(page, p1, p2, getPlayerStatus);
+  const result = await watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToken);
   log(`Result: winner=${result.winner} method=${result.method}`);
 
   // ── 10. Leave the game ────────────────────────────────────
@@ -154,10 +154,38 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     try { await page.click('#backButton'); await page.waitForTimeout(1500); } catch (_) {}
   }
 
-  // ── 11. Close post-game stats screen if it appears ───────
-  log('Closing stats screen...');
+  // ── 11. Save replay then close stats screen ──────────────
+  log('Saving replay and closing stats screen...');
   try {
     await page.waitForSelector('#statisticsWindow', { timeout: 8000 });
+
+    // ── Download replay ───────────────────────────────────
+    const replayBtn = await page.$('#saveReplayButton');
+    if (replayBtn && replayOpts.replayDir) {
+      try {
+        // Build a clean filename: YYYY-MM-DD_Round_P1-vs-P2.lwr
+        const date      = new Date().toISOString().slice(0, 10); // 2024-01-15
+        const round     = (replayOpts.roundName || 'Match').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '-');
+        const p1safe    = p1.replace(/[^a-zA-Z0-9_-]/g, '');
+        const p2safe    = p2.replace(/[^a-zA-Z0-9_-]/g, '');
+        const filename  = `${date}_${round}_${p1safe}-vs-${p2safe}.lwr`;
+        const savePath  = require('path').join(replayOpts.replayDir, filename);
+
+        // Set up download listener BEFORE clicking the button
+        const downloadPromise = page.waitForEvent('download', { timeout: 10000 });
+        await replayBtn.click();
+        const download = await downloadPromise;
+        await download.saveAs(savePath);
+        log(`Replay saved: ${filename}`);
+      } catch (re) {
+        log(`Replay save failed: ${re.message} — continuing.`);
+      }
+    } else if (replayBtn) {
+      // No replayDir configured — just click to trigger native save dialog (will be ignored headless)
+      log('No replay dir configured — skipping replay download.');
+    }
+
+    // ── Close stats screen ────────────────────────────────
     const closeBtn = await page.$('#statisticsWindow button.closeButton');
     if (closeBtn) {
       await closeBtn.click();
@@ -293,7 +321,7 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
 //  2. Status poll: first player whose status leaves 'match' is the loser
 //     (catches disconnects and rage-quits without gg)
 // getPlayerStatus(name) → 'match' | 'map lobby' | 'lobby' | null
-function watchForResult(page, p1, p2, getPlayerStatus) {
+function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToken) {
   return new Promise(resolve => {
     const p1l     = p1.toLowerCase(), p2l = p2.toLowerCase();
     let ggLoser   = null;
@@ -303,13 +331,34 @@ function watchForResult(page, p1, p2, getPlayerStatus) {
     function doResolve(loser, method) {
       if (resolved) return;
       resolved = true;
+      // Notify controller IMMEDIATELY — stops safety monitor before worker
+      // starts the leave-game sequence, preventing the "result unclear" false alarm.
+      if (onResultKnown) onResultKnown();
       stopChat();
       clearInterval(statusIv);
+      clearInterval(cancelIv);
       if (ggTimer) clearTimeout(ggTimer);
       const winner = loser.toLowerCase() === p1l ? p2 : p1;
       console.log(`  [watchForResult] Result: ${winner} wins, ${loser} loses (${method})`);
       resolve({ winner, loser, method });
     }
+
+    // ── Cancellation poller ──────────────────────────────
+    // Checks the shared cancelToken every 500ms.
+    // When the controller calls applyResult (e.g. Force Win), it sets
+    // cancelToken.cancelled = true, and this resolves with a 'cancelled' result
+    // so the worker promise chain exits without double-applying.
+    const cancelIv = cancelToken ? setInterval(() => {
+      if (!cancelToken.cancelled) return;
+      clearInterval(cancelIv);
+      if (resolved) return;
+      resolved = true;
+      stopChat();
+      clearInterval(statusIv);
+      if (ggTimer) clearTimeout(ggTimer);
+      console.log(`  [watchForResult] Cancelled by controller (Force Win / Override)`);
+      resolve({ winner: p1, loser: p2, method: 'cancelled' }); // dummy — controller ignores this
+    }, 500) : null;
 
     // ── Method 1: gg in chat ─────────────────────────────
     const stopChat = ph.watchGameChat(page, (line) => {
@@ -327,6 +376,10 @@ function watchForResult(page, p1, p2, getPlayerStatus) {
       else if (sender === p2l) ggLoser = p2;
       else return;
       console.log(`  [watchForResult] ${ggLoser} typed gg — resolving in 5s`);
+      // Notify controller immediately so safety monitor unsubscribes NOW,
+      // before the 5s delay. doResolve will also call onResultKnown but
+      // controller handles double-calls gracefully (matchResolved flag).
+      if (onResultKnown) onResultKnown();
       // Stop status poll immediately — gg has absolute priority over disconnect detection
       if (statusIv) clearInterval(statusIv);
       ggTimer = setTimeout(() => doResolve(ggLoser, 'gg'), 5000);

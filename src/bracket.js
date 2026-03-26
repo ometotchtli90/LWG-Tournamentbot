@@ -34,28 +34,78 @@ function requiredWorkers(maxPlayers) {
 // ═══════════════════════════════════════════════════════════
 
 function buildSingleElim(players) {
-  const seeded = shuffle(players);
-  const size   = nextPow2(seeded.length);
-  while (seeded.length < size) seeded.push('BYE');
+  const seeded   = shuffle(players);
+  const size     = nextPow2(seeded.length);
+  const byeCount = size - seeded.length;
+
+  const byePlayers = seeded.slice(0, byeCount);
+  const r1Players  = seeded.slice(byeCount);
 
   const rounds = [];
-  const r1     = [];
-  for (let i = 0; i < seeded.length; i += 2) {
-    r1.push(makeMatch(seeded[i], seeded[i + 1], { bracket: 'SE', roundIdx: 0, matchIdx: r1.length }));
-  }
-  rounds.push(r1);
 
-  let prev = r1, ri = 1;
-  while (prev.length > 1) {
+  // ── Round 1 ──────────────────────────────────────────────
+  // Only the non-bye players play here. We need to track exactly
+  // which R2 slot each R1 winner should advance into.
+  const r1 = [];
+  for (let i = 0; i < r1Players.length; i += 2) {
+    r1.push(makeMatch(r1Players[i], r1Players[i + 1], { bracket: 'SE', roundIdx: 0, matchIdx: r1.length }));
+  }
+  if (r1.length > 0) rounds.push(r1);
+
+  // ── Build subsequent rounds ──────────────────────────────
+  let prevSize = byeCount + r1.length;
+  let ri = rounds.length;
+
+  while (prevSize > 1) {
+    const matchCount = prevSize / 2;
     const r = [];
-    for (let i = 0; i < Math.ceil(prev.length / 2); i++) {
+    for (let i = 0; i < matchCount; i++) {
       r.push(makeMatch(null, null, { bracket: 'SE', roundIdx: ri, matchIdx: i }));
     }
     rounds.push(r);
-    prev = r; ri++;
+
+    // Pre-fill bye seeds into the FIRST round after R1 (i.e. ri === 1 when byeCount > 0,
+    // or ri === 0 when there are no byes and everyone plays R1).
+    const isFirstRealRound = (byeCount > 0 && ri === 1) || (byeCount === 0 && ri === 0);
+    if (isFirstRealRound && byeCount > 0) {
+      // Place bye seeds into slots. Each pair of byes fills one match completely.
+      // Any leftover odd bye seed takes p1, leaving p2 for an R1 winner.
+      for (let i = 0; i < byePlayers.length; i++) {
+        const matchIdx = Math.floor(i / 2);
+        const slot     = i % 2 === 0 ? 'p1' : 'p2';
+        if (r[matchIdx]) r[matchIdx][slot] = byePlayers[i];
+      }
+
+      // Now assign R1 matches to the correct R2 slots.
+      // Scan R2 for null slots left after bye pre-filling and
+      // assign each R1 match to the next available null slot in order.
+      let r1WinnerIdx = 0;
+      for (let mi = 0; mi < r.length && r1WinnerIdx < r1.length; mi++) {
+        if (!r[mi].p1) {
+          r1[r1WinnerIdx].nextMatchIdx  = mi;
+          r1[r1WinnerIdx].nextMatchSlot = 'p1';
+          r[mi].p1 = '__R1_WINNER__'; // mark as assigned so next scan skips it
+          r1WinnerIdx++;
+        }
+        if (r1WinnerIdx < r1.length && !r[mi].p2) {
+          r1[r1WinnerIdx].nextMatchIdx  = mi;
+          r1[r1WinnerIdx].nextMatchSlot = 'p2';
+          r[mi].p2 = '__R1_WINNER__'; // mark as assigned
+          r1WinnerIdx++;
+        }
+      }
+      // Clear the placeholder markers — real values come from applyWinSingle
+      for (const m of r) {
+        if (m.p1 === '__R1_WINNER__') m.p1 = null;
+        if (m.p2 === '__R1_WINNER__') m.p2 = null;
+      }
+    }
+
+    prevSize = matchCount;
+    ri++;
   }
 
-  return { format: 'single_elimination', rounds, eliminated: [] };
+  return { format: 'single_elimination', rounds, eliminated: [], byeSeeds: byePlayers };
 }
 
 function applyWinSingle(bracket, match, winner) {
@@ -66,18 +116,39 @@ function applyWinSingle(bracket, match, winner) {
 
   const nextRi = match.roundIdx + 1;
   if (nextRi < bracket.rounds.length) {
-    const next = bracket.rounds[nextRi][Math.floor(match.matchIdx / 2)];
-    if (next) { if (match.matchIdx % 2 === 0) next.p1 = winner; else next.p2 = winner; }
+    let next, slot;
+
+    // If this R1 match has a pre-computed nextMatchIdx, use it directly.
+    // This handles non-power-of-2 player counts where bye seeds have pre-filled
+    // some R2 slots and the standard matchIdx/2 formula would target a full slot.
+    if (match.nextMatchIdx !== undefined) {
+      next = bracket.rounds[nextRi][match.nextMatchIdx];
+      slot = match.nextMatchSlot || (match.matchIdx % 2 === 0 ? 'p1' : 'p2');
+    } else {
+      next = bracket.rounds[nextRi][Math.floor(match.matchIdx / 2)];
+      slot = match.matchIdx % 2 === 0 ? 'p1' : 'p2';
+    }
+
+    if (next) {
+      // Use the pre-computed slot if available, otherwise fill whichever is empty
+      if (match.nextMatchIdx !== undefined) {
+        next[slot] = winner;
+      } else if (!next.p1) {
+        next.p1 = winner;
+      } else if (!next.p2) {
+        next.p2 = winner;
+      } else {
+        next[slot] = winner; // fallback
+      }
+    }
   }
   return { winner, loser };
 }
 
 function autoByesSingle(bracket) {
-  bracket.rounds[0].forEach(m => {
-    if (m.p1 === 'BYE' || m.p2 === 'BYE') {
-      applyWinSingle(bracket, m, m.p1 === 'BYE' ? m.p2 : m.p1);
-    }
-  });
+  // With the new balanced bracket, BYEs are handled structurally —
+  // bye seeds are pre-filled into R2 slots, so there are no BYE matches to auto-resolve.
+  // This function is kept for API compatibility but is a no-op.
 }
 
 function readyMatchesSingle(bracket) {
@@ -420,24 +491,14 @@ function getRoundName(match, bracket) {
 
 // ── Auto-resolve any BYE matches that became ready ───────
 // Call this after every applyWin to propagate BYEs in later rounds.
+// For single_elimination, BYEs are now structural (no BYE string players),
+// so this only applies to double_elimination.
 function resolvePendingByes(bracket) {
   let resolved = true;
   while (resolved) {
     resolved = false;
     const fmt = bracket.format;
-    if (fmt === 'single_elimination') {
-      for (const round of bracket.rounds) {
-        for (const m of round) {
-          if (!m.winner && (m.p1 === 'BYE' || m.p2 === 'BYE') && (m.p1 || m.p2)) {
-            const winner = m.p1 === 'BYE' ? m.p2 : m.p1;
-            if (winner && winner !== 'BYE') {
-              applyWinSingle(bracket, m, winner);
-              resolved = true;
-            }
-          }
-        }
-      }
-    } else if (fmt === 'double_elimination') {
+    if (fmt === 'double_elimination') {
       const allRounds = [...(bracket.wb || []), ...(bracket.lb || []), bracket.gf || []].flat();
       for (const m of allRounds) {
         if (!m || m.winner) continue;

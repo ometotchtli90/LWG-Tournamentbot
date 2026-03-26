@@ -3,9 +3,11 @@
 const { chromium } = require('playwright');
 const cfg          = require('./config');
 const ph           = require('./pageHelpers');
+const { isInGame } = require('./pageHelpers');
 const workerMod    = require('./worker');
 const B            = require('./bracket');
 const lb           = require('./leaderboardClient');
+const lbExport     = require('./leaderboardExport');
 
 // ── Launch browser (Chrome → Edge → Chromium fallback) ────
 async function launchBrowser(headless = false) {
@@ -35,6 +37,16 @@ const state = {
   bracket:        null,
   tournamentId:   null,
   activeMatches:  {},       // matchId → { match, workerName, gameName }
+  cancelTokens:   {},       // matchId → { cancelled: bool } — shared ref with worker
+  matchLog:       [],       // all match results for this tournament (for export)
+  replayDir:      null,     // set during boot — folder where replays are saved
+
+  // ── Shared status poller ─────────────────────────────
+  // One interval reads the ENTIRE player list once per tick and fans out
+  // to all registered match subscribers — instead of N matches each polling separately.
+  statusPoller:      null,  // the setInterval handle
+  statusSubscribers: {},    // matchId → fn(statusMap) called each tick
+  statusCache:       {},    // username.toLowerCase() → last known status
   log:            [],
 
   browser:        null,
@@ -53,6 +65,62 @@ function emit(type, payload = {}) {
   state.log.push(entry);
   if (state.log.length > 300) state.log.shift();
   if (_broadcast) _broadcast(entry);
+}
+
+// ── Shared status poller ──────────────────────────────────
+// Reads the full #playersListOnline DOM once every 1.5s on the controller page.
+// All active match monitors subscribe to receive the status map — no per-match polling.
+function startSharedPoller() {
+  if (state.statusPoller) return; // already running
+  state.statusPoller = setInterval(async () => {
+    if (!state.controllerPage) return;
+    try {
+      // Read entire player list in one evaluate call
+      const entries = await state.controllerPage.evaluate(() => {
+        const list = document.getElementById('playersListOnline');
+        if (!list) return [];
+        return [...list.querySelectorAll('p.playerListPlayer')].map(p => {
+          const name  = p.querySelector('a.playerNameInList')?.innerText?.trim() || null;
+          const label = p.querySelector('span.lobbyLabel');
+          const status = label ? label.innerText.replace(/[()]/g, '').trim().toLowerCase() : 'lobby';
+          return { name, status };
+        }).filter(e => e.name);
+      });
+
+      // Build fresh status map
+      const map = {};
+      for (const { name, status } of entries) {
+        map[name.toLowerCase()] = status;
+      }
+      state.statusCache = map;
+
+      // Fan out to all subscribers
+      const subs = Object.values(state.statusSubscribers);
+      for (const fn of subs) {
+        try { fn(map); } catch (_) {}
+      }
+    } catch (_) {}
+  }, 1500);
+}
+
+function stopSharedPoller() {
+  if (state.statusPoller) {
+    clearInterval(state.statusPoller);
+    state.statusPoller = null;
+  }
+  state.statusSubscribers = {};
+  state.statusCache = {};
+}
+
+// Subscribe a match to the shared poller. Returns an unsubscribe function.
+function subscribeStatus(matchId, fn) {
+  state.statusSubscribers[matchId] = fn;
+  return () => { delete state.statusSubscribers[matchId]; };
+}
+
+// Get a player's current status from the cache (instant, no await needed).
+function getCachedStatus(username) {
+  return state.statusCache[username.toLowerCase()] ?? null;
 }
 
 // ── Boot ──────────────────────────────────────────────────
@@ -77,7 +145,7 @@ async function boot(accounts) {
 
   for (const acc of accounts.workers) {
     console.log(`  Worker (headless): ${acc.username}`);
-    const ctx = await wb.newContext();
+    const ctx = await wb.newContext({ acceptDownloads: true });
     const wp  = await ctx.newPage();
     await ph.navigateToLobby(wp);
     await ph.login(wp, acc.username, acc.password);
@@ -85,6 +153,20 @@ async function boot(accounts) {
   }
 
   state.stopChatWatch = ph.watchLobbyChat(state.controllerPage, handleChatMessage);
+  startSharedPoller();
+
+  // Compute replay save directory (userData/replays/)
+  try {
+    const electron = require('electron');
+    const userApp  = electron.app;
+    const dataDir  = userApp ? userApp.getPath('userData') : require('path').join(__dirname, '..');
+    state.replayDir = require('path').join(dataDir, 'replays');
+    require('fs').mkdirSync(state.replayDir, { recursive: true });
+    console.log(`  Replay dir: ${state.replayDir}`);
+  } catch (e) {
+    console.warn('  Could not set up replay dir:', e.message);
+  }
+
   console.log('✅ All accounts ready.\n');
   emit('boot', { workers: state.workerPages.map(w => w.username), channel });
 }
@@ -283,84 +365,95 @@ async function dispatchReadyMatches() {
   })();
 }
 
-// ── Poll controller page until a worker shows the expected lobby status ──
+// ── Poll until a worker shows the expected lobby status ──────
+// Now reads from the shared status cache instead of querying the DOM directly.
 function waitForWorkerStatus(username, expectedStatus, timeoutMs) {
   return new Promise(resolve => {
     const start = Date.now();
     let lastStatus = null;
-    const iv = setInterval(async () => {
+    const iv = setInterval(() => {
       if (Date.now() - start > timeoutMs) {
         clearInterval(iv);
         console.log(`  [waitForWorkerStatus] Timeout waiting for ${username} to show '${expectedStatus}' (last: ${lastStatus})`);
-        resolve(); // timed out — proceed anyway
+        resolve();
         return;
       }
-      try {
-        const s = await ph.getPlayerLobbyStatus(state.controllerPage, username);
-        if (s !== lastStatus) {
-          console.log(`  [waitForWorkerStatus] ${username}: ${lastStatus} → ${s}`);
-          lastStatus = s;
-        }
-        if (s === expectedStatus) {
-          clearInterval(iv);
-          console.log(`  [waitForWorkerStatus] ${username} reached '${expectedStatus}' ✓`);
-          resolve();
-        }
-      } catch (_) {}
-    }, 1000);
+      const s = getCachedStatus(username);
+      if (s !== lastStatus) {
+        console.log(`  [waitForWorkerStatus] ${username}: ${lastStatus} → ${s}`);
+        lastStatus = s;
+      }
+      if (s === expectedStatus) {
+        clearInterval(iv);
+        console.log(`  [waitForWorkerStatus] ${username} reached '${expectedStatus}' ✓`);
+        resolve();
+      }
+    }, 500);
   });
 }
 
 function startMatch(match, worker, gameName) {
-  const statusCb        = (s) => emit('match_status', { gameName, status: s, worker: worker.username });
-  const getPlayerStatus = (name) => ph.getPlayerLobbyStatus(state.controllerPage, name);
+  const statusCb = (s) => emit('match_status', { gameName, status: s, worker: worker.username });
 
-  let matchResolved = false;
+  // getPlayerStatus: reads from the shared cache — no extra DOM query per call.
+  // 'cpu match' is normalised to 'match' so it doesn't look like a disconnect.
+  const getPlayerStatus = (name) => {
+    const s = getCachedStatus(name);
+    if (s === 'cpu match') return Promise.resolve('match');
+    return Promise.resolve(s);
+  };
 
-  // ── Safety monitor ─────────────────────────────────────
-  // Polls player and worker statuses every 3s.
-  // Only activates after the worker reaches 'match' status (game running).
-  // When BOTH players AND the worker are back in 'lobby' after that,
-  // the game is over — resolve if worker hasn't already.
+  let matchResolved    = false;
   let workerSeenInMatch = false;
-  const safetyIv = setInterval(async () => {
-    if (matchResolved) { clearInterval(safetyIv); return; }
+
+  // Cancel token — shared object reference passed to the worker.
+  const cancelToken = { cancelled: false };
+  state.cancelTokens[match.id] = cancelToken;
+
+  // Called by worker the INSTANT gg is detected (before the 5s delay).
+  function onResultKnown() {
+    matchResolved = true;
+    unsubscribe();
+  }
+
+  // ── Safety monitor via shared poller ───────────────────
+  // Subscribes to the shared 1.5s poller instead of its own setInterval.
+  const unsubscribe = subscribeStatus(match.id, async (map) => {
+    if (matchResolved) { unsubscribe(); return; }
     try {
-      const [s1, s2, sw] = await Promise.all([
-        getPlayerStatus(match.p1),
-        getPlayerStatus(match.p2),
-        getPlayerStatus(worker.username),
-      ]);
+      const s1 = map[match.p1.toLowerCase()]       ?? null;
+      const s2 = map[match.p2.toLowerCase()]       ?? null;
+      const sw = map[worker.username.toLowerCase()] ?? null;
+
+      const p1InGame = isInGame(s1);
+      const p2InGame = isInGame(s2);
+      const wInGame  = isInGame(sw);
+
       console.log(`  [safety] ${match.p1}=${s1} ${match.p2}=${s2} ${worker.username}=${sw}`);
 
-      // Wait until worker is confirmed in 'match' before checking for end
-      if (sw === 'match') workerSeenInMatch = true;
+      if (wInGame) workerSeenInMatch = true;
       if (!workerSeenInMatch) return;
 
-      const workersBack  = sw === 'lobby' || sw === null;
-      const p1Back       = s1 !== 'match';
-      const p2Back       = s2 !== 'match';
+      const workerBack = !wInGame;
+      const p1Back     = !p1InGame;
+      const p2Back     = !p2InGame;
 
-      if (workersBack && p1Back && p2Back && (s1 !== null || s2 !== null)) {
-        clearInterval(safetyIv);
-        if (matchResolved) return;
+      if (workerBack && p1Back && p2Back && (s1 !== null || s2 !== null)) {
+        if (matchResolved) { unsubscribe(); return; }
+        unsubscribe();
         matchResolved = true;
 
-        // Determine loser — whoever left match first
-        // We can't know exact timing here so use status as proxy:
-        // null = disconnected (left abruptly), 'lobby' = left cleanly
-        // If one is null and other is lobby, null is the disconnecter = loser
         let loser, method;
-        if (s1 === null && s2 !== null)      { loser = match.p1; method = 'disconnect'; }
+        if      (s1 === null && s2 !== null) { loser = match.p1; method = 'disconnect'; }
         else if (s2 === null && s1 !== null) { loser = match.p2; method = 'disconnect'; }
-        else if (s1 !== 'match' && s2 === 'match') { loser = match.p1; method = 'disconnect'; }
-        else if (s2 !== 'match' && s1 === 'match') { loser = match.p2; method = 'disconnect'; }
+        else if (p1Back && !p2Back)          { loser = match.p1; method = 'disconnect'; }
+        else if (p2Back && !p1Back)          { loser = match.p2; method = 'disconnect'; }
         else {
-          // Both back in lobby — can't determine loser from status alone
-          console.log(`  [safety] Both players back in lobby but loser unclear — skipping auto-resolve`);
+          console.log(`  [safety] Both players back but loser unclear — skipping auto-resolve`);
           await chat(`⚠️ ${match.p1} vs ${match.p2} ended but result unclear. Use Force Win to advance.`);
           worker.busy = false;
           delete state.activeMatches[match.id];
+          delete state.cancelTokens[match.id];
           emit('match_error', { gameName, error: 'result_unclear' });
           return;
         }
@@ -369,8 +462,7 @@ function startMatch(match, worker, gameName) {
         console.log(`  [safety] Auto-resolved: ${winner} wins, ${loser} loses (${method})`);
         const wantsRematch = await offerRematch(match, winner, loser);
         if (wantsRematch) {
-          // Re-run the match
-          matchResolved = false;
+          matchResolved    = false;
           workerSeenInMatch = false;
           worker.busy = true;
           state.activeMatches[match.id] = { match, workerName: worker.username, gameName };
@@ -380,24 +472,26 @@ function startMatch(match, worker, gameName) {
         }
         worker.busy = false;
         delete state.activeMatches[match.id];
+        delete state.cancelTokens[match.id];
         await applyResult(match, winner, loser, method, gameName);
       }
     } catch (_) {}
-  }, 3000);
+  });
 
   workerMod.hostMatch(
     worker.page, worker.username, gameName, match.p1, match.p2,
-    statusCb, getPlayerStatus
+    statusCb, getPlayerStatus, onResultKnown, cancelToken,
+    { replayDir: state.replayDir, matchId: match.id, roundName: B.getRoundName(match, state.bracket) }
   ).then(async result => {
+    unsubscribe();
+    if (matchResolved && result.method !== 'gg') return;
+    if (result.method === 'cancelled') return;
     matchResolved = true;
-    clearInterval(safetyIv);
 
     if (result.method === 'disconnect') {
-      // Offer winner a rematch before recording the result
       const wantsRematch = await offerRematch(match, result.winner, result.loser);
       if (wantsRematch) {
-        // Reset flags and re-run the match with the same worker
-        matchResolved = false;
+        matchResolved    = false;
         workerSeenInMatch = false;
         worker.busy = true;
         state.activeMatches[match.id] = { match, workerName: worker.username, gameName };
@@ -409,52 +503,42 @@ function startMatch(match, worker, gameName) {
 
     worker.busy = false;
     delete state.activeMatches[match.id];
+    delete state.cancelTokens[match.id];
     await applyResult(match, result.winner, result.loser, result.method, gameName);
   }).catch(async err => {
+    unsubscribe();
     matchResolved = true;
-    clearInterval(safetyIv);
     if (worker.busy) worker.busy = false;
     if (state.activeMatches[match.id]) delete state.activeMatches[match.id];
+    if (state.cancelTokens[match.id])  delete state.cancelTokens[match.id];
 
     if (err.message === 'join_timeout') {
       const p1Joined = err.p1Joined;
       const p2Joined = err.p2Joined;
-
       if (p1Joined && !p2Joined) {
-        // Only p1 showed up — p1 wins by default, p2 disqualified
         await chat(`⏰ ${match.p2} didn't join. ${match.p1} wins by default. ${match.p2} is disqualified.`);
         await applyResult(match, match.p1, match.p2, 'no_show', gameName);
-
       } else if (p2Joined && !p1Joined) {
-        // Only p2 showed up — p2 wins by default, p1 disqualified
         await chat(`⏰ ${match.p1} didn't join. ${match.p2} wins by default. ${match.p1} is disqualified.`);
         await applyResult(match, match.p2, match.p1, 'no_show', gameName);
-
       } else {
-        // Nobody joined — both disqualified, find a loser from this round to fill in
         await chat(`⏰ Neither ${match.p1} nor ${match.p2} joined. Both are disqualified.`);
         emit('match_error', { gameName, error: 'no_show_both' });
-        // Mark both as eliminated and try to find a replacement from eliminated players
         if (!state.bracket.eliminated) state.bracket.eliminated = [];
         state.bracket.eliminated.push(match.p1, match.p2);
-        match.winner = 'BYE';
-        match.loser  = 'BYE';
-        // Propagate a BYE so the bracket can continue
-        const { applyWin } = require('./bracket');
-        // Just advance with a bye — next round slot stays TBD
-        await chat(`⚠️ This bracket slot will be empty. Use Force Win to assign a replacement if needed.`);
+        B.applyWin(state.bracket, match, 'BYE');
+        B.resolvePendingByes(state.bracket);
         emit('bracket', { bracket: state.bracket });
-        setTimeout(dispatchReadyMatches, 1000);
+        const walkedOver = await checkWalkoverChampion();
+        if (!walkedOver) setTimeout(dispatchReadyMatches, 1000);
       }
     } else {
-      // Other errors — short message, no raw stack trace
       const reason = (err.message || String(err)).split('\n')[0];
       await chat(`🚨 ${match.p1} vs ${match.p2}: ${reason}. Use Force Win to advance manually.`);
       emit('match_error', { gameName, error: reason });
     }
   });
 }
-
 // ── Offer rematch after a disconnect ────────────────────
 // Asks the winner in lobby chat if they want a rematch.
 // Waits up to 60s for them to type !yes or !no.
@@ -497,36 +581,161 @@ function getFreeWorker() {
   return state.workerPages.find(w => !w.busy) || null;
 }
 
+// ── Walkover champion check ───────────────────────────────
+// After a both-DQ or BYE propagation, scan the bracket to see if
+// exactly one real player remains with a clear path to the final.
+// If the final match has one real player and the other slot is BYE/null,
+// declare that player champion immediately.
+// Returns true if a champion was declared (caller should not dispatch more matches).
+async function checkWalkoverChampion() {
+  if (!state.bracket) return false;
+  const fmt = state.bracket.format;
+
+  let finalMatch = null;
+  if (fmt === 'single_elimination') {
+    const lastRound = state.bracket.rounds[state.bracket.rounds.length - 1];
+    finalMatch = lastRound?.[0] || null;
+  } else if (fmt === 'double_elimination') {
+    finalMatch = state.bracket.gf?.[0] || null;
+  }
+  if (!finalMatch) return false;
+
+  const p1Real = finalMatch.p1 && finalMatch.p1 !== 'BYE';
+  const p2Real = finalMatch.p2 && finalMatch.p2 !== 'BYE';
+
+  // Final already has a winner — nothing to do
+  if (finalMatch.winner) return false;
+
+  // Both slots filled with real players — normal final, let it play
+  if (p1Real && p2Real) return false;
+
+  // One real player, other slot is BYE or not yet filled
+  // Check if the other slot will ever be filled by a real player
+  // (i.e. is there an unfinished upstream match with real players?)
+  const hasRemainingRealMatches = B.readyMatches(state.bracket)
+    .some(m => m.p1 && m.p1 !== 'BYE' && m.p2 && m.p2 !== 'BYE');
+
+  if (hasRemainingRealMatches) return false; // real matches still to play — wait
+
+  // The only remaining real player wins by walkover
+  const champ = p1Real ? finalMatch.p1 : p2Real ? finalMatch.p2 : null;
+  if (!champ) return false;
+
+  console.log(`  [walkover] ${champ} wins by walkover — no real opponents remain`);
+  await chat(`🏆🎉 TOURNAMENT OVER! ${champ} wins by walkover — all other players were eliminated or disqualified!`);
+  await ph.sendPrivateMessage(state.controllerPage, champ, `🥇 You are the TOURNAMENT CHAMPION! (walkover — all opponents disqualified)`);
+
+  // Mark the final match as complete
+  finalMatch.winner = champ;
+  finalMatch.loser  = finalMatch.p1 === champ ? (finalMatch.p2 || 'BYE') : (finalMatch.p1 || 'BYE');
+
+  state.phase = 'done';
+  emit('phase',   { phase: 'done', champion: champ });
+  emit('bracket', { bracket: state.bracket });
+
+  const elim   = [...(state.bracket.eliminated || [])];
+  const second = elim[elim.length - 1] || null;
+  const third  = elim[elim.length - 2] || null;
+  lb.tournamentEnd({ id: state.tournamentId, champion: champ, second, third, bracket: state.bracket });
+  lbExport.recordTournament({
+    id:       state.tournamentId,
+    name:     `Tournament ${new Date().toLocaleDateString()}`,
+    format:   state.format,
+    date:     Date.now(),
+    champion: champ, second, third,
+    bracket:  state.bracket,
+    matchLog: state.matchLog,
+    players:  state.players,
+    replayDir: state.replayDir,
+  });
+  // Auto-publish to GitHub if configured
+  autoPublish();
+
+  return true;
+}
+
+// ── Auto-publish leaderboard to GitHub ───────────────────
+// Called automatically after every tournament ends.
+// Silently skips if GitHub repo is not configured in accounts.json.
+function autoPublish() {
+  try {
+    const fs       = require('fs');
+    const path     = require('path');
+    const electron = require('electron');
+    const userApp  = electron.app;
+    const dataDir  = userApp ? userApp.getPath('userData') : path.join(__dirname, '..');
+    const accsPath = path.join(dataDir, 'accounts.json');
+    if (!fs.existsSync(accsPath)) return;
+    const accs = JSON.parse(fs.readFileSync(accsPath, 'utf8'));
+    const gh   = accs.github || {};
+    if (!gh.repoDir) return; // not configured — silently skip
+    lbExport.publishToGitHub({
+      repoDir:  gh.repoDir,
+      branch:   gh.branch   || 'main',
+      filename: gh.filename || 'index.html',
+    });
+  } catch (e) {
+    console.warn('[autoPublish] Failed:', e.message);
+    // Non-fatal — tournament result is already saved locally
+  }
+}
+
 // ── Apply result ──────────────────────────────────────────
 async function applyResult(match, winner, loser, method, gameName) {
+  // If there's an active worker for this match (e.g. Force Win called mid-game),
+  // cancel it now so watchForResult stops and doesn't double-apply.
+  if (state.cancelTokens[match.id]) {
+    state.cancelTokens[match.id].cancelled = true;
+    delete state.cancelTokens[match.id];
+    console.log(`  [applyResult] Cancelled active worker token for match ${match.id}`);
+  }
+  // Free the worker if still marked busy for this match
+  const activeEntry = state.activeMatches[match.id];
+  if (activeEntry) {
+    const w = state.workerPages.find(wp => wp.username === activeEntry.workerName);
+    if (w) w.busy = false;
+    delete state.activeMatches[match.id];
+  }
   B.applyWin(state.bracket, match, winner);
   // Auto-resolve any BYE matches that became available after this result
   B.resolvePendingByes(state.bracket);
 
-  // Build announcement depending on format
+  // Build announcement — skip entirely if winner is BYE (silent propagation)
   const fmt    = state.bracket.format;
   let   annMsg = '';
 
-  if (fmt === 'double_elimination') {
-    if (match.bracket === 'W') {
-      annMsg = `🏆 ${winner} → Winner Bracket | ${loser} → Loser Bracket`;
-    } else if (match.bracket === 'L') {
-      annMsg = `🏆 ${winner} advances in Loser Bracket | ${loser} eliminated`;
+  if (winner !== 'BYE') {
+    if (fmt === 'double_elimination') {
+      if (match.bracket === 'W') {
+        annMsg = `🏆 ${winner} → Winner Bracket | ${loser} → Loser Bracket`;
+      } else if (match.bracket === 'L') {
+        annMsg = `🏆 ${winner} advances in Loser Bracket | ${loser} eliminated`;
+      } else {
+        annMsg = `🏆 Champion: ${winner}!`;
+      }
     } else {
-      annMsg = `🏆 Champion: ${winner}!`;
+      annMsg = `🏆 ${winner} advances! ${loser} eliminated.`;
     }
-  } else {
-    annMsg = `🏆 ${winner} advances! ${loser} eliminated.`;
+    await chat(annMsg);
+    // PM only real players
+    await ph.sendPrivateMessage(state.controllerPage, winner, `🏆 You advance! Next match details coming soon.`);
+    if (loser && loser !== 'BYE') {
+      await ph.sendPrivateMessage(state.controllerPage, loser, `❌ You lost to ${winner}. ${fmt === 'double_elimination' && match.bracket === 'W' ? 'You drop to the Loser Bracket!' : 'Thanks for playing!'}`);
+    }
   }
-
-  await chat(annMsg);
-
-  // PM
-  await ph.sendPrivateMessage(state.controllerPage, winner, `🏆 You advance! Next match details coming soon.`);
-  await ph.sendPrivateMessage(state.controllerPage, loser,  `❌ You lost to ${winner}. ${fmt === 'double_elimination' && match.bracket === 'W' ? 'You drop to the Loser Bracket!' : 'Thanks for playing!'}`);
 
   emit('match_result', { gameName, winner, loser, method, matchId: match.id });
   emit('bracket',      { bracket: state.bracket });
+
+  // Accumulate match log for end-of-tournament export
+  if (winner !== 'BYE') {
+    state.matchLog.push({
+      matchId: match.id,
+      round:   B.getRoundName(match, state.bracket),
+      p1: match.p1, p2: match.p2,
+      winner, loser, method,
+    });
+  }
 
   // Push match result to leaderboard VPS
   lb.matchResult({
@@ -541,8 +750,10 @@ async function applyResult(match, winner, loser, method, gameName) {
   // Check tournament complete
   if (B.isComplete(state.bracket)) {
     const champ = B.champion(state.bracket);
-    await chat(`🏆🎉 TOURNAMENT OVER! Champion: ${champ}!`);
-    await ph.sendPrivateMessage(state.controllerPage, champ, `🥇 You are the TOURNAMENT CHAMPION!`);
+    if (champ && champ !== 'BYE') {
+      await chat(`🏆🎉 TOURNAMENT OVER! Champion: ${champ}!`);
+      await ph.sendPrivateMessage(state.controllerPage, champ, `🥇 You are the TOURNAMENT CHAMPION!`);
+    }
     state.phase = 'done';
     emit('phase', { phase: 'done', champion: champ });
 
@@ -551,11 +762,25 @@ async function applyResult(match, winner, loser, method, gameName) {
     const second = elim[elim.length - 1] || null;
     const third  = elim[elim.length - 2] || null;
     lb.tournamentEnd({ id: state.tournamentId, champion: champ, second, third, bracket: state.bracket });
+    lbExport.recordTournament({
+      id:       state.tournamentId,
+      name:     `Tournament ${new Date().toLocaleDateString()}`,
+      format:   state.format,
+      date:     Date.now(),
+      champion: champ, second, third,
+      bracket:  state.bracket,
+      matchLog: state.matchLog,
+      players:  state.players,
+      replayDir: state.replayDir,
+    });
+    // Auto-publish to GitHub if configured
+    autoPublish();
     return;
   }
 
-  // Dispatch any newly available matches
-  setTimeout(dispatchReadyMatches, 1000);
+  // Dispatch any newly available matches, or check for walkover if only BYEs remain
+  const walkedOver = await checkWalkoverChampion();
+  if (!walkedOver) setTimeout(dispatchReadyMatches, 1000);
 }
 
 // ── Manual win ────────────────────────────────────────────
@@ -601,6 +826,86 @@ async function printStandings() {
   await chat(`🟢 Alive: ${alive.join(', ')||'none'} | 🔴 Out: ${elim.join(', ')||'none'}`);
 }
 
+// ── Override a completed match result ────────────────────
+// Undoes the old result and re-applies with the new winner.
+// Only safe when the old winner has NOT yet played their next match.
+async function overrideResult(matchId, newWinner) {
+  if (!state.bracket) return { error: 'No active bracket' };
+
+  // Find the match across all rounds
+  let match = null;
+  const fmt = state.bracket.format;
+
+  if (fmt === 'single_elimination') {
+    for (const round of state.bracket.rounds) {
+      match = round.find(m => m.id === matchId) || match;
+    }
+  } else if (fmt === 'double_elimination') {
+    const all = [...state.bracket.wb, ...state.bracket.lb, state.bracket.gf].flat();
+    match = all.find(m => m && m.id === matchId) || null;
+  }
+
+  if (!match) return { error: `Match ${matchId} not found` };
+  if (!match.winner) return { error: 'Match has no result yet — use Force Win instead' };
+
+  const oldWinner = match.winner;
+  const oldLoser  = match.loser;
+  newWinner = [match.p1, match.p2].find(p => p?.toLowerCase() === newWinner.toLowerCase());
+  if (!newWinner) return { error: `${newWinner} is not a player in this match` };
+  if (newWinner === oldWinner) return { error: `${newWinner} already won this match` };
+
+  // Check if old winner has already played their next match
+  const newLoser  = newWinner === match.p1 ? match.p2 : match.p1;
+  const nextRi    = match.roundIdx + 1;
+  let nextMatch   = null;
+
+  if (fmt === 'single_elimination' && nextRi < state.bracket.rounds.length) {
+    nextMatch = state.bracket.rounds[nextRi][Math.floor(match.matchIdx / 2)];
+  } else if (fmt === 'double_elimination' && match.bracket === 'W' && nextRi < state.bracket.wb.length) {
+    nextMatch = state.bracket.wb[nextRi][Math.floor(match.matchIdx / 2)];
+  }
+
+  const nextAlreadyPlayed = nextMatch && nextMatch.winner;
+  if (nextAlreadyPlayed) {
+    await chat(`⚠️ Cannot override ${match.p1} vs ${match.p2}: ${oldWinner} has already played their next match.`);
+    return { error: 'Next match already played — cannot override' };
+  }
+
+  // ── Undo old result ──────────────────────────────────────
+  // Remove old winner from the next match slot
+  if (nextMatch) {
+    if (nextMatch.p1 === oldWinner) nextMatch.p1 = null;
+    if (nextMatch.p2 === oldWinner) nextMatch.p2 = null;
+  }
+
+  // For double elim: if old loser was dropped to LB, remove them from LB too
+  if (fmt === 'double_elimination' && match.bracket === 'W' && oldLoser && oldLoser !== 'BYE') {
+    // Remove old loser from all unplayed LB matches they were seeded into
+    const allLb = state.bracket.lb.flat();
+    for (const lm of allLb) {
+      if (!lm || lm.winner) continue;
+      if (lm.p1 === oldLoser) lm.p1 = null;
+      if (lm.p2 === oldLoser) lm.p2 = null;
+    }
+    // Remove from lbDropQueue if still pending
+    state.bracket.lbDropQueue = (state.bracket.lbDropQueue || []).filter(d => d.loser !== oldLoser);
+  }
+
+  // Remove old loser from eliminated list, add new loser
+  state.bracket.eliminated = (state.bracket.eliminated || []).filter(p => p !== oldLoser);
+
+  // Reset match
+  match.winner = null;
+  match.loser  = null;
+
+  // ── Apply new result ─────────────────────────────────────
+  const gameName = `OVERRIDE_${match.id}`;
+  await applyResult(match, newWinner, newLoser, 'override', gameName);
+
+  await chat(`🔄 Result override: ${match.p1} vs ${match.p2} → ${newWinner} wins (was ${oldWinner})`);
+  return { ok: true };
+}
+
 // ── Dashboard API ─────────────────────────────────────────
 function getSnapshot() {
   return {
@@ -617,6 +922,42 @@ function getSnapshot() {
 
 async function dashboardCommand(cmd, args = []) {
   switch (cmd) {
+    case 'overrideResult': return await overrideResult(args[0], args[1]);
+    case 'exportLeaderboard': {
+      try {
+        const path = require('path');
+        const electron = require('electron');
+        const userApp  = electron.app;
+        const dataDir  = userApp ? userApp.getPath('userData') : path.join(__dirname, '..');
+        const outPath  = path.join(dataDir, 'leaderboard-export.html');
+        lbExport.exportToFile(outPath);
+        return { ok: true, path: outPath };
+      } catch (e) {
+        return { error: e.message };
+      }
+    }
+    case 'publishLeaderboard': {
+      try {
+        const fs       = require('fs');
+        const path     = require('path');
+        const electron = require('electron');
+        const userApp  = electron.app;
+        const dataDir  = userApp ? userApp.getPath('userData') : path.join(__dirname, '..');
+        // Load github config from accounts.json
+        const accsPath = path.join(dataDir, 'accounts.json');
+        const accs     = fs.existsSync(accsPath) ? JSON.parse(fs.readFileSync(accsPath,'utf8')) : {};
+        const gh       = accs.github || {};
+        if (!gh.repoDir) return { error: 'GitHub repo directory not configured. Set it in ⚙ Settings.' };
+        const result = lbExport.publishToGitHub({
+          repoDir:  gh.repoDir,
+          branch:   gh.branch   || 'main',
+          filename: gh.filename || 'index.html',
+        });
+        return { ok: true, ...result };
+      } catch (e) {
+        return { error: e.message };
+      }
+    }
     case 'openSignup':   await openSignup(args[0]);              break;
     case 'closeSignup':  await closeSignup();                    break;
     case 'addPlayer':    await registerPlayer(args[0]);          break;
@@ -659,8 +1000,8 @@ async function doReset() {
   state.players       = [];
   state.bracket       = null;
   state.activeMatches = {};
-  state.workerPages.forEach(w => { w.busy = false; });
-  emit('phase', { phase: 'idle' });
+  state.matchLog      = [];
+  state.workerPages.forEach(w => { w.busy = false; });  emit('phase', { phase: 'idle' });
   emit('reset', {});
 }
 
@@ -668,6 +1009,7 @@ function isRunning() { return !!state.browser; }
 
 async function shutdown() {
   if (state.stopChatWatch) state.stopChatWatch();
+  stopSharedPoller();
   if (state.browser)       { try { await state.browser.close();       } catch (_) {} state.browser       = null; }
   if (state.workerBrowser) { try { await state.workerBrowser.close(); } catch (_) {} state.workerBrowser = null; }
 }

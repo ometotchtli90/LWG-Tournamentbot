@@ -90,7 +90,9 @@ async function login(page, username, password) {
 }
 
 // ── Get lobby status of a player from the online player list ─
-// Returns: 'lobby' | 'map lobby' | 'match' | null (not found)
+// Returns: 'lobby' | 'map lobby' | 'match' | 'cpu match' | 'editor' | null (not found/offline)
+// NOTE: For result-detection purposes, 'cpu match' should be treated the same as 'match'
+//       (player is in a game). Use isInGame(status) helper for this.
 async function getPlayerLobbyStatus(page, username) {
   return page.evaluate((name) => {
     const list = document.getElementById('playersListOnline');
@@ -105,6 +107,12 @@ async function getPlayerLobbyStatus(page, username) {
     }
     return null;
   }, username);
+}
+
+// ── Returns true if status means "currently in a game" ───
+// Covers match, cpu match, and any future in-game variants.
+function isInGame(status) {
+  return status === 'match' || status === 'cpu match';
 }
 
 // ── Detect own username from page ────────────────────────
@@ -351,5 +359,5 @@ module.exports = {
   navigateToLobby, login, detectUsername,
   sendLobbyChat, sendGameChat, sendPrivateMessage,
   watchLobbyChat, watchLobbyGameChat, watchGameChat,
-  getSlotPlayers, kickPlayer, getPlayerLobbyStatus,
+  getSlotPlayers, kickPlayer, getPlayerLobbyStatus, isInGame,
 };
