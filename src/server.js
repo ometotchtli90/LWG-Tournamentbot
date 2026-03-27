@@ -23,7 +23,7 @@ function startServer() {
 
   const publicDir = path.join(__dirname, '..', 'dashboard', 'public');
   app.use(express.static(publicDir));
-  app.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+  app.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'dashboard.html')));
 
   // ── Accounts ────────────────────────────────
   app.get('/api/accounts', (_req, res) => {

@@ -1,0 +1,62 @@
+name: Build & Release Windows App
+
+on:
+  push:
+    tags:
+      - 'v*'          # Triggers on tags like v1.0.0, v1.2.3 etc.
+
+permissions:
+  contents: write     # Needed to create GitHub Releases
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Build Windows installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:win
+
+      - name: Upload installer to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "LWG Tournament Bot ${{ github.ref_name }}"
+          body: |
+            ## LWG Tournament Bot ${{ github.ref_name }}
+
+            ### Installation
+            1. Download the `.exe` installer below
+            2. Run it — Windows may show a SmartScreen warning, click "More info" → "Run anyway"
+            3. The app installs and launches automatically
+
+            ### First run
+            - Go to ⚙ Settings and enter your controller + worker account credentials
+            - Click 🚀 Launch Browsers to start
+
+            ### What's new
+            See [CHANGELOG](https://github.com/${{ github.repository }}/commits/main) for details.
+          files: |
+            dist/*.exe
+            dist/*.zip
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          # Tags like v1.0.0-beta are marked as pre-release automatically
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
