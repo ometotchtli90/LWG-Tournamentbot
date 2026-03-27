@@ -1,5 +1,182 @@
 {
-  "updatedAt": null,
-  "players": {},
-  "tournaments": []
+  "players": {
+    "ConsciouslyEating": {
+      "wins": 1,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 2,
+      "points": 5,
+      "gamesPlayed": [
+        "T-1774644050652"
+      ]
+    },
+    "guest_583348": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": [
+        "T-1774644050652"
+      ]
+    },
+    "Xizun": {
+      "wins": 1,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 2,
+      "points": 2,
+      "gamesPlayed": [
+        "T-1774644050652"
+      ]
+    },
+    "tzonny97": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": [
+        "T-1774644050652"
+      ]
+    },
+    "crayon": {
+      "wins": 2,
+      "losses": 0,
+      "titles": 1,
+      "top3": 1,
+      "matches": 2,
+      "points": 10,
+      "gamesPlayed": [
+        "T-1774644050652",
+        "T-1774644050652"
+      ]
+    }
+  },
+  "tournaments": [
+    {
+      "id": "T-1774644050652",
+      "name": "Tournament 27.3.2026",
+      "format": "single_elimination",
+      "date": 1774646973248,
+      "champion": "crayon",
+      "second": "ConsciouslyEating",
+      "third": "Xizun",
+      "players": [
+        "ConsciouslyEating",
+        "tzonny97",
+        "Xizun",
+        "guest_583348",
+        "crayon"
+      ],
+      "matchLog": [
+        {
+          "matchId": "SE-1-0",
+          "round": "Semi-Finals",
+          "p1": "ConsciouslyEating",
+          "p2": "guest_583348",
+          "winner": "ConsciouslyEating",
+          "loser": "guest_583348",
+          "method": "manual"
+        },
+        {
+          "matchId": "SE-0-0",
+          "round": "Quarter-Finals",
+          "p1": "Xizun",
+          "p2": "tzonny97",
+          "winner": "Xizun",
+          "loser": "tzonny97",
+          "method": "gg"
+        },
+        {
+          "matchId": "SE-1-1",
+          "round": "Semi-Finals",
+          "p1": "crayon",
+          "p2": "Xizun",
+          "winner": "crayon",
+          "loser": "Xizun",
+          "method": "gg"
+        },
+        {
+          "matchId": "SE-2-0",
+          "round": "Grand Final",
+          "p1": "ConsciouslyEating",
+          "p2": "crayon",
+          "winner": "crayon",
+          "loser": "ConsciouslyEating",
+          "method": "gg"
+        }
+      ],
+      "replayDir": "C:\\Users\\CE\\AppData\\Roaming\\lwg-tournament-bot\\replays",
+      "bracket": {
+        "format": "single_elimination",
+        "rounds": [
+          [
+            {
+              "p1": "Xizun",
+              "p2": "tzonny97",
+              "winner": "Xizun",
+              "loser": "tzonny97",
+              "id": "SE-0-0",
+              "bracket": "SE",
+              "roundIdx": 0,
+              "matchIdx": 0,
+              "nextMatchIdx": 1,
+              "nextMatchSlot": "p2"
+            }
+          ],
+          [
+            {
+              "p1": "ConsciouslyEating",
+              "p2": "guest_583348",
+              "winner": "ConsciouslyEating",
+              "loser": "guest_583348",
+              "id": "SE-1-0",
+              "bracket": "SE",
+              "roundIdx": 1,
+              "matchIdx": 0
+            },
+            {
+              "p1": "crayon",
+              "p2": "Xizun",
+              "winner": "crayon",
+              "loser": "Xizun",
+              "id": "SE-1-1",
+              "bracket": "SE",
+              "roundIdx": 1,
+              "matchIdx": 1
+            }
+          ],
+          [
+            {
+              "p1": "ConsciouslyEating",
+              "p2": "crayon",
+              "winner": "crayon",
+              "loser": "ConsciouslyEating",
+              "id": "SE-2-0",
+              "bracket": "SE",
+              "roundIdx": 2,
+              "matchIdx": 0
+            }
+          ]
+        ],
+        "eliminated": [
+          "guest_583348",
+          "tzonny97",
+          "Xizun",
+          "ConsciouslyEating"
+        ],
+        "byeSeeds": [
+          "ConsciouslyEating",
+          "guest_583348",
+          "crayon"
+        ]
+      }
+    }
+  ],
+  "updatedAt": 1774646973256
 }
