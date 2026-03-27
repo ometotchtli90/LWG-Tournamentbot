@@ -3,10 +3,10 @@ name: Build & Release Windows App
 on:
   push:
     tags:
-      - 'v*'          # Triggers on tags like v1.0.0, v1.2.3 etc.
+      - 'v*'
 
 permissions:
-  contents: write     # Needed to create GitHub Releases
+  contents: write
 
 jobs:
   build-windows:
@@ -20,21 +20,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install bot dependencies
+        working-directory: bot
         run: npm ci
 
       - name: Install Playwright Chromium
+        working-directory: bot
         run: npx playwright install chromium
 
       - name: Build Windows installer
+        working-directory: bot
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist:win
 
-      - name: Upload installer to GitHub Release
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "LWG Tournament Bot ${{ github.ref_name }}"
@@ -43,20 +45,16 @@ jobs:
 
             ### Installation
             1. Download the `.exe` installer below
-            2. Run it — Windows may show a SmartScreen warning, click "More info" → "Run anyway"
-            3. The app installs and launches automatically
+            2. Run it — click "More info" → "Run anyway" if Windows warns you
+            3. App installs and opens automatically
 
             ### First run
-            - Go to ⚙ Settings and enter your controller + worker account credentials
-            - Click 🚀 Launch Browsers to start
-
-            ### What's new
-            See [CHANGELOG](https://github.com/${{ github.repository }}/commits/main) for details.
+            - Go to ⚙ Settings → enter controller + worker credentials
+            - Click 🚀 Launch Browsers
           files: |
-            dist/*.exe
-            dist/*.zip
+            bot/dist/*.exe
+            bot/dist/*.zip
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
-          # Tags like v1.0.0-beta are marked as pre-release automatically
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

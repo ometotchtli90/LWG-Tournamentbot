@@ -648,7 +648,36 @@ async function checkWalkoverChampion() {
     players:  state.players,
     replayDir: state.replayDir,
   });
+  // Auto-publish to GitHub if configured
+  autoPublish();
+
   return true;
+}
+
+// ── Auto-publish leaderboard to GitHub ───────────────────
+// Called automatically after every tournament ends.
+// Silently skips if GitHub repo is not configured in accounts.json.
+function autoPublish() {
+  try {
+    const fs       = require('fs');
+    const path     = require('path');
+    const electron = require('electron');
+    const userApp  = electron.app;
+    const dataDir  = userApp ? userApp.getPath('userData') : path.join(__dirname, '..');
+    const accsPath = path.join(dataDir, 'accounts.json');
+    if (!fs.existsSync(accsPath)) return;
+    const accs = JSON.parse(fs.readFileSync(accsPath, 'utf8'));
+    const gh   = accs.github || {};
+    if (!gh.repoDir) return; // not configured — silently skip
+    lbExport.publishToGitHub({
+      repoDir:  gh.repoDir,
+      branch:   gh.branch   || 'main',
+      filename: gh.filename || 'index.html',
+    });
+  } catch (e) {
+    console.warn('[autoPublish] Failed:', e.message);
+    // Non-fatal — tournament result is already saved locally
+  }
 }
 
 // ── Apply result ──────────────────────────────────────────
@@ -744,6 +773,8 @@ async function applyResult(match, winner, loser, method, gameName) {
       players:  state.players,
       replayDir: state.replayDir,
     });
+    // Auto-publish to GitHub if configured
+    autoPublish();
     return;
   }
 
@@ -892,13 +923,37 @@ function getSnapshot() {
 async function dashboardCommand(cmd, args = []) {
   switch (cmd) {
     case 'overrideResult': return await overrideResult(args[0], args[1]);
-    case 'downloadData': {
-      // Returns the current leaderboard data as JSON for the browser to download.
-      // User saves it as data.json and commits it to the repo manually.
+    case 'exportLeaderboard': {
       try {
-        const d = lbExport.loadData();
-        d.updatedAt = Date.now();
-        return { ok: true, data: d };
+        const path = require('path');
+        const electron = require('electron');
+        const userApp  = electron.app;
+        const dataDir  = userApp ? userApp.getPath('userData') : path.join(__dirname, '..');
+        const outPath  = path.join(dataDir, 'leaderboard-export.html');
+        lbExport.exportToFile(outPath);
+        return { ok: true, path: outPath };
+      } catch (e) {
+        return { error: e.message };
+      }
+    }
+    case 'publishLeaderboard': {
+      try {
+        const fs       = require('fs');
+        const path     = require('path');
+        const electron = require('electron');
+        const userApp  = electron.app;
+        const dataDir  = userApp ? userApp.getPath('userData') : path.join(__dirname, '..');
+        // Load github config from accounts.json
+        const accsPath = path.join(dataDir, 'accounts.json');
+        const accs     = fs.existsSync(accsPath) ? JSON.parse(fs.readFileSync(accsPath,'utf8')) : {};
+        const gh       = accs.github || {};
+        if (!gh.repoDir) return { error: 'GitHub repo directory not configured. Set it in ⚙ Settings.' };
+        const result = lbExport.publishToGitHub({
+          repoDir:  gh.repoDir,
+          branch:   gh.branch   || 'main',
+          filename: gh.filename || 'index.html',
+        });
+        return { ok: true, ...result };
       } catch (e) {
         return { error: e.message };
       }

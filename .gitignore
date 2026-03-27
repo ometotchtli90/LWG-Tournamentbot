@@ -1,4 +1,21 @@
+# Node
 node_modules/
-dist/
-.env
+npm-debug.log*
+
+# Electron build output
+bot/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local bot config (stored in %APPDATA%, not in repo)
+accounts.json
+config-override.json
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
 *.log

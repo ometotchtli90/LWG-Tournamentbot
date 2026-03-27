@@ -119,17 +119,15 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   status('game_started');
 
-  // ── Send GLHF + gg reminder via in-game chat ─────────────
+  // ── Send gg hint via in-game chat ────────────────────────
+  // Click the chat input directly (worker is spectator, keyboard focus unreliable)
   try {
     await page.waitForTimeout(2000); // let game fully load first
     await page.waitForSelector('#ingameChatInput', { timeout: 5000 });
     await page.click('#ingameChatInput');
-    await page.fill('#ingameChatInput', `GLHF to you both! Please remember to write "gg" before you leave.`);
+    await page.fill('#ingameChatInput', '💡 When you lose, please type "gg" before leaving!');
     await page.keyboard.press('Enter');
-    log('GLHF message sent in-game.');
-  } catch (_) {
-    log('Could not send GLHF message in-game — continuing.');
-  }
+    log('gg hint sent in-game.');
   } catch (_) {
     log('Could not send gg hint in-game — continuing.');
   }

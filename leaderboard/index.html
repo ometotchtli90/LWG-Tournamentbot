@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LWG Tournament Leaderboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   BASE — matching LWG exactly
+═══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy:      #0d1526;
+  --navy2:     #111d35;
+  --navy3:     #162040;
+  --navy4:     #1c2a50;
+  --border:    #2255bb;
+  --border2:   #3366dd;
+  --border-hi: #4488ff;
+  --gold:      #ff8800;
+  --gold2:     #ffaa22;
+  --green:     #44dd44;
+  --green2:    #33bb33;
+  --blue-text: #aaccff;
+  --blue-dim:  #6688aa;
+  --white:     #ddeeff;
+  --red:       #ff4444;
+  --silver:    #99bbdd;
+  --pixel:     'Press Start 2P', monospace;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--navy);
+  color: var(--blue-text);
+  font-family: var(--pixel);
+  font-size: 11px;
+  line-height: 1.8;
+  min-height: 100vh;
+  /* Subtle scanline effect */
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.06) 2px,
+    rgba(0,0,0,.06) 4px
+  );
+}
+
+/* ═══════════════════════════════════════════
+   PANEL — the core LWG window component
+═══════════════════════════════════════════ */
+.panel {
+  background: var(--navy2);
+  border: 2px solid var(--border2);
+  box-shadow:
+    inset 0 0 0 1px rgba(68,136,255,.15),
+    0 0 0 1px var(--navy),
+    4px 4px 0 rgba(0,0,0,.5);
+}
+
+.panel-title {
+  font-family: var(--pixel);
+  font-size: 12px;
+  color: var(--gold);
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--border);
+  background: var(--navy3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: .05em;
+}
+.panel-title::before { content: '>> '; color: var(--border-hi); }
+
+/* ═══════════════════════════════════════════
+   NAV BAR — like the top bar in game
+═══════════════════════════════════════════ */
+.topbar {
+  background: var(--navy3);
+  border-bottom: 3px solid var(--border2);
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 3px 0 rgba(0,0,0,.5);
+}
+.topbar-logo {
+  font-family: var(--pixel);
+  font-size: 13px;
+  color: var(--gold);
+  padding: 12px 20px;
+  border-right: 2px solid var(--border);
+  white-space: nowrap;
+  text-shadow: 2px 2px 0 rgba(0,0,0,.8);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.topbar-logo span { color: var(--white); }
+.topbar-nav {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+}
+.nav-btn {
+  font-family: var(--pixel);
+  font-size: 10px;
+  color: var(--blue-dim);
+  padding: 0 18px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--border);
+  transition: background .1s, color .1s;
+  letter-spacing: .03em;
+}
+.nav-btn:hover { background: var(--navy4); color: var(--white); }
+.nav-btn.on { background: var(--navy4); color: var(--gold); border-bottom: 3px solid var(--gold); margin-bottom: -3px; }
+.topbar-ts {
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--blue-dim);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════
+   HERO — like the game title area
+═══════════════════════════════════════════ */
+.hero {
+  background: var(--navy3);
+  border-bottom: 3px solid var(--border2);
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.hero-title {
+  font-family: var(--pixel);
+  font-size: clamp(16px, 2.5vw, 22px);
+  color: var(--gold);
+  text-shadow: 3px 3px 0 rgba(0,0,0,.9), 0 0 20px rgba(255,136,0,.3);
+  letter-spacing: .05em;
+}
+.hero-title span { color: var(--white); }
+.hero-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.hstat {
+  text-align: center;
+  border: 1px solid var(--border);
+  background: var(--navy);
+  padding: 8px 16px;
+}
+.hstat-val {
+  font-family: var(--pixel);
+  font-size: 18px;
+  color: var(--gold);
+  display: block;
+  line-height: 1.4;
+}
+.hstat-label {
+  font-size: 8px;
+  color: var(--blue-dim);
+  display: block;
+  margin-top: 4px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════
+   PAGE LAYOUT
+═══════════════════════════════════════════ */
+.page { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+.section { margin-bottom: 32px; }
+.section + .section { border-top: 2px solid var(--border); padding-top: 32px; }
+
+/* ═══════════════════════════════════════════
+   POINTS LEGEND
+═══════════════════════════════════════════ */
+.pts-legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.ptag {
+  font-family: var(--pixel);
+  font-size: 9px;
+  padding: 5px 10px;
+  border: 1px solid;
+}
+.ptag.g { color: var(--gold);   border-color: var(--gold);   background: rgba(255,136,0,.08); }
+.ptag.s { color: var(--silver); border-color: var(--silver); background: rgba(153,187,221,.06); }
+.ptag.b { color: #cc8844;       border-color: #cc8844;       background: rgba(204,136,68,.06); }
+.ptag.n { color: var(--blue-dim); border-color: var(--border); background: var(--navy); }
+
+/* ═══════════════════════════════════════════
+   PODIUM
+═══════════════════════════════════════════ */
+.podium {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr 1fr;
+  gap: 12px;
+  margin-bottom: 28px;
+  align-items: end;
+}
+.pod {
+  border: 2px solid var(--border);
+  background: var(--navy2);
+  padding: 18px 14px;
+  text-align: center;
+  position: relative;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.6);
+  transition: border-color .15s;
+}
+.pod:hover { border-color: var(--border-hi); }
+.pod-1 { border-color: var(--gold); box-shadow: 3px 3px 0 rgba(0,0,0,.6), 0 0 12px rgba(255,136,0,.2); background: #1a1500; }
+.pod-2 { border-color: var(--silver); background: #111820; }
+.pod-3 { border-color: #996633; background: #130f08; }
+.pod-empty { opacity: .3; }
+.pod-rank {
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--blue-dim);
+  letter-spacing: .1em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.pod-1 .pod-rank { color: var(--gold); }
+.pod-2 .pod-rank { color: var(--silver); }
+.pod-3 .pod-rank { color: #cc8844; }
+.pod-medal { font-size: 28px; margin-bottom: 8px; display: block; }
+.pod-1 .pod-medal { font-size: 34px; }
+.pod-name {
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--green);
+  margin-bottom: 8px;
+  word-break: break-all;
+  text-shadow: 1px 1px 0 rgba(0,0,0,.8);
+}
+.pod-1 .pod-name { font-size: 13px; }
+.pod-pts {
+  font-family: var(--pixel);
+  font-size: 20px;
+  color: var(--gold);
+  display: block;
+  text-shadow: 2px 2px 0 rgba(0,0,0,.8);
+}
+.pod-1 .pod-pts { font-size: 26px; }
+.pod-pts-unit { font-size: 8px; color: var(--blue-dim); }
+.pod-bar {
+  height: 4px;
+  background: var(--navy);
+  border: 1px solid var(--border);
+  margin: 10px 0 8px;
+}
+.pod-bar-fill {
+  height: 100%;
+  background: var(--gold);
+}
+.pod-sub { font-size: 8px; color: var(--blue-dim); line-height: 2; }
+
+/* ═══════════════════════════════════════════
+   STANDINGS TABLE — like players list in game
+═══════════════════════════════════════════ */
+.table-wrap {
+  border: 2px solid var(--border2);
+  background: var(--navy2);
+  overflow-x: auto;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.5);
+}
+.stbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--pixel);
+  font-size: 10px;
+}
+.stbl thead tr {
+  background: var(--navy3);
+  border-bottom: 2px solid var(--border2);
+}
+.stbl th {
+  padding: 9px 12px;
+  text-align: left;
+  color: var(--gold);
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-right: 1px solid var(--border);
+}
+.stbl th:last-child { border-right: none; }
+.stbl th.tc { text-align: center; }
+.stbl tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+  opacity: 0;
+  animation: rowIn .3s forwards;
+  animation-delay: var(--d, 0ms);
+}
+.stbl tbody tr:last-child { border-bottom: none; }
+.stbl tbody tr:hover { background: var(--navy4); }
+.stbl td {
+  padding: 9px 12px;
+  border-right: 1px solid var(--border);
+  vertical-align: middle;
+}
+.stbl td:last-child { border-right: none; }
+
+/* Row highlight classes */
+.row-gold   td { background: rgba(255,136,0,.06); }
+.row-silver td { background: rgba(153,187,221,.04); }
+.row-bronze td { background: rgba(204,136,68,.04); }
+.stbl tbody tr:hover td { background: var(--navy4) !important; }
+
+.col-rank { width: 44px; text-align: center; font-size: 14px; }
+.rank-num { font-size: 10px; color: var(--blue-dim); }
+.col-name { color: var(--green); min-width: 120px; }
+.row-gold   .col-name { color: var(--gold); }
+.col-pts { color: var(--gold); font-size: 13px; }
+.col-bar { min-width: 100px; }
+.bar-t { height: 8px; background: var(--navy); border: 1px solid var(--border); }
+.bar-f { height: 100%; background: var(--gold); }
+.col-c { text-align: center; color: var(--blue-text); }
+.wr-val { font-size: 10px; }
+.wr-hi  { color: var(--green); }
+.wr-mid { color: var(--blue-text); }
+.wr-low { color: var(--red); }
+
+/* ═══════════════════════════════════════════
+   BRACKET — like game lobby view
+═══════════════════════════════════════════ */
+.bracket-scroll { overflow-x: auto; padding-bottom: 8px; }
+.bracket-tree {
+  display: flex;
+  gap: 0;
+  align-items: flex-start;
+  min-width: max-content;
+}
+.bround { display: flex; flex-direction: column; min-width: 190px; }
+.bround-head {
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--gold);
+  text-align: center;
+  padding: 6px 8px 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.bround.done   .bround-head { color: var(--green2); }
+.bround.active .bround-head { color: var(--gold2); }
+.bround.future .bround-head { color: var(--blue-dim); }
+.bround-col { display: flex; flex-direction: column; gap: 8px; padding: 0 6px 8px; }
+
+.bmatch {
+  border: 2px solid var(--border);
+  background: var(--navy);
+  box-shadow: 2px 2px 0 rgba(0,0,0,.5);
+}
+.bmatch.live {
+  border-color: var(--gold);
+  box-shadow: 2px 2px 0 rgba(0,0,0,.5), 0 0 8px rgba(255,136,0,.2);
+}
+.bslot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--pixel);
+  font-size: 10px;
+  min-height: 32px;
+}
+.bslot:last-child { border-bottom: none; }
+.bslot.win  { background: rgba(68,221,68,.08); }
+.bslot.lose { background: rgba(255,68,68,.06); }
+.bslot.tbd,.bslot.bye { color: var(--blue-dim); font-style: italic; font-size: 9px; }
+.bslot-name { flex: 1; }
+.bslot.win  .bslot-name { color: var(--green); }
+.bslot.lose .bslot-name { color: var(--blue-dim); text-decoration: line-through; }
+.bslot-trophy { font-size: 10px; }
+
+.bsec-label {
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 6px 0 4px 4px;
+  border-left: 3px solid;
+  margin-bottom: 6px;
+}
+.bsec-label.wb { color: #4488ff; border-color: #4488ff; }
+.bsec-label.lb { color: var(--red);  border-color: var(--red); }
+.bsec-label.gf { color: var(--gold); border-color: var(--gold); }
+
+/* ═══════════════════════════════════════════
+   TOURNAMENT HISTORY CARDS
+═══════════════════════════════════════════ */
+.tcards { display: flex; flex-direction: column; gap: 16px; }
+.tcard {
+  border: 2px solid var(--border);
+  background: var(--navy2);
+  box-shadow: 3px 3px 0 rgba(0,0,0,.5);
+  opacity: 0;
+  animation: rowIn .4s forwards;
+  animation-delay: var(--d, 0ms);
+}
+.tcard:hover { border-color: var(--border2); }
+.tcard-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 2px solid var(--border);
+  background: var(--navy3);
+}
+.tcard-name {
+  font-family: var(--pixel);
+  font-size: 12px;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+.tcard-meta {
+  font-size: 8px;
+  color: var(--blue-dim);
+  line-height: 2;
+}
+.tcard-places { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tplace {
+  font-family: var(--pixel);
+  font-size: 9px;
+  padding: 5px 10px;
+  border: 1px solid;
+}
+.tplace.g { color: var(--gold);   border-color: var(--gold);   background: rgba(255,136,0,.1); }
+.tplace.s { color: var(--silver); border-color: var(--silver); background: rgba(153,187,221,.08); }
+.tplace.b { color: #cc8844;       border-color: #cc8844;       background: rgba(204,136,68,.08); }
+
+/* Details / Summary — like collapsible game panels */
+.tdetail { border-top: 1px solid var(--border); }
+.tdetail summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 16px;
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--blue-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  transition: color .1s, background .1s;
+  letter-spacing: .04em;
+}
+.tdetail summary::-webkit-details-marker { display: none; }
+.tdetail summary:hover { color: var(--white); background: var(--navy4); }
+.tdetail[open] summary { color: var(--gold); }
+.tdetail summary::before { content: '[ + ]'; color: var(--border-hi); }
+.tdetail[open] summary::before { content: '[ - ]'; }
+.det-count {
+  font-size: 8px;
+  color: var(--border-hi);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  margin-left: 4px;
+}
+
+/* Match results table inside history */
+.mwrap { padding: 0 16px 16px; overflow-x: auto; }
+.mtbl { width: 100%; border-collapse: collapse; font-family: var(--pixel); font-size: 9px; }
+.mtbl th {
+  padding: 7px 10px;
+  background: var(--navy3);
+  color: var(--gold);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 8px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-right: 1px solid var(--border);
+}
+.mtbl th:last-child { border-right: none; }
+.mtbl td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.mtbl td:last-child { border-right: none; }
+.mtbl tr:last-child td { border-bottom: none; }
+.mtbl tr:hover td { background: var(--navy4); }
+.mcol-round { color: var(--blue-dim); font-size: 8px; white-space: nowrap; }
+.mcol-vs    { text-align: center; color: var(--blue-dim); }
+.mcol-win   { color: var(--green); }
+.mbadge {
+  font-size: 7px;
+  color: var(--blue-dim);
+  border: 1px solid var(--border);
+  padding: 1px 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+/* Bracket inside history */
+.bwrap { padding: 16px; overflow-x: auto; }
+
+/* ═══════════════════════════════════════════
+   EMPTY / LOADING
+═══════════════════════════════════════════ */
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  border: 2px solid var(--border);
+  background: var(--navy2);
+}
+.empty-icon { font-size: 40px; margin-bottom: 14px; display: block; }
+.empty-text {
+  font-family: var(--pixel);
+  font-size: 12px;
+  color: var(--gold);
+  margin-bottom: 10px;
+}
+.empty-sub { font-size: 9px; color: var(--blue-dim); line-height: 2; }
+
+/* ═══════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════ */
+footer {
+  text-align: center;
+  padding: 20px;
+  font-size: 8px;
+  color: var(--blue-dim);
+  border-top: 2px solid var(--border);
+  margin-top: 32px;
+  letter-spacing: .08em;
+}
+
+/* Loading bar */
+#lbar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  width: 0;
+  z-index: 9999;
+  background: var(--gold);
+  transition: width .4s;
+  box-shadow: 0 0 8px rgba(255,136,0,.6);
+}
+
+/* ═══════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════ */
+@keyframes rowIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes blink {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+.blink { animation: blink 1s step-end infinite; }
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════ */
+@media(max-width: 900px) {
+  .podium { grid-template-columns: 1fr; }
+  .pod-1  { order: -1; }
+  .topbar-logo { font-size: 10px; }
+  .page { padding: 16px 12px; }
+  .hero { padding: 18px; }
+  .stbl th:nth-child(n+7), .stbl td:nth-child(n+7) { display: none; }
+}
+@media(max-width: 600px) {
+  .stbl th:nth-child(n+5), .stbl td:nth-child(n+5) { display: none; }
+  .hero-stats { gap: 10px; }
+}
+</style>
+</head>
+<body>
+
+<div id="lbar"></div>
+
+<!-- ── Top bar ───────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="topbar-logo">🏆 <span>LWG</span> TOURNAMENT</div>
+  <nav class="topbar-nav">
+    <a href="#standings" class="nav-btn on">Standings</a>
+    <a href="#bracket"   class="nav-btn">Bracket</a>
+    <a href="#history"   class="nav-btn">History</a>
+  </nav>
+  <div class="topbar-ts" id="nav-ts">Loading...</div>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────────────── -->
+<div class="hero">
+  <div class="hero-title">🏆 LEADERBOARD <span>/ LittleWarGame</span></div>
+  <div class="hero-stats">
+    <div class="hstat"><span class="hstat-val" id="hs-players">—</span><span class="hstat-label">Players</span></div>
+    <div class="hstat"><span class="hstat-val" id="hs-tourneys">—</span><span class="hstat-label">Tourneys</span></div>
+    <div class="hstat"><span class="hstat-val" id="hs-matches">—</span><span class="hstat-label">Matches</span></div>
+    <div class="hstat"><span class="hstat-val" id="hs-leader" style="font-size:12px;color:var(--green)">—</span><span class="hstat-label">Points Leader</span></div>
+  </div>
+</div>
+
+<!-- ── Main content ─────────────────────────────────────── -->
+<div class="page">
+  <div id="app">
+    <div class="empty">
+      <span class="empty-icon">⏳</span>
+      <div class="empty-text">LOADING...</div>
+      <div class="empty-sub">Fetching tournament data<span class="blink">_</span></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  LWG TOURNAMENT BOT &nbsp;|&nbsp; Updated: <span id="footer-ts">—</span>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════
+async function loadData() {
+  const bar = document.getElementById('lbar');
+  bar.style.width = '30%';
+  try {
+    const r = await fetch('data.json?t=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    bar.style.width = '70%';
+    const d = await r.json();
+    bar.style.width = '100%';
+    setTimeout(() => { bar.style.opacity = '0'; }, 500);
+    return d;
+  } catch(e) {
+    bar.style.background = '#ff4444';
+    bar.style.width = '100%';
+    return null;
+  }
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ══════════════════════════════════════════════════════════
+// BRACKET RENDERER
+// ══════════════════════════════════════════════════════════
+function renderBracket(bracket) {
+  if (!bracket) return '<div class="empty" style="padding:20px"><div class="empty-sub">No bracket data.</div></div>';
+
+  function slot(name, winner) {
+    const isBye = name === 'BYE', isTbd = !name || name === 'TBD';
+    const cls = isBye||isTbd ? (isBye?'bye':'tbd') : winner===name?'win':winner?'lose':'';
+    const trophy = winner===name ? '<span class="bslot-trophy">🏆</span>' : '';
+    return `<div class="bslot ${cls}"><span class="bslot-name">${esc(name||'TBD')}</span>${trophy}</div>`;
+  }
+  function card(m) {
+    if (!m) return '';
+    const p1=m.p1||'TBD', p2=m.p2||'TBD', w=m.winner;
+    const live = !w && p1!=='BYE' && p1!=='TBD' && p2!=='BYE' && p2!=='TBD';
+    return `<div class="bmatch${live?' live':''}">${slot(p1,w)}${slot(p2,w)}</div>`;
+  }
+  function round(title, matches, cls='') {
+    return `<div class="bround ${cls}">
+      <div class="bround-head">${esc(title)}</div>
+      <div class="bround-col">${(matches||[]).map(card).join('')}</div>
+    </div>`;
+  }
+
+  const fmt = bracket.format;
+  if (fmt === 'single_elimination') {
+    const total = bracket.rounds?.length || 1;
+    const rounds = (bracket.rounds||[]).map((r, ri) => {
+      const n = total - ri;
+      const nm = n===1?'Final':n===2?'Semi-Finals':n===3?'Quarters':`Round ${ri+1}`;
+      const cls = r.every(m=>m.winner)?'done':r.some(m=>!m.winner&&m.p1&&m.p2)?'active':'future';
+      return round(nm, r, cls);
+    }).join('');
+    return `<div class="bracket-scroll"><div class="bracket-tree">${rounds}</div></div>`;
+  }
+  if (fmt === 'double_elimination') {
+    const wb = (bracket.wb||[]).map((r,i)=>round(`WB R${i+1}`,r)).join('');
+    const lb = (bracket.lb||[]).map((r,i)=>round(`LB R${i+1}`,r)).join('');
+    const gf = bracket.gf ? round('Grand Final', bracket.gf, 'active') : '';
+    return `
+      <div class="bsec-label wb">>> Winner Bracket</div>
+      <div class="bracket-scroll"><div class="bracket-tree">${wb}</div></div>
+      ${lb?`<div class="bsec-label lb" style="margin-top:20px">>> Loser Bracket</div>
+      <div class="bracket-scroll"><div class="bracket-tree">${lb}</div></div>`:''}
+      ${gf?`<div class="bsec-label gf" style="margin-top:20px">>> Grand Final</div>
+      <div class="bracket-scroll"><div class="bracket-tree">${gf}</div></div>`:''}`;
+  }
+  return '';
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════
+function render(data) {
+  const ts = data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '—';
+  document.getElementById('nav-ts').textContent = 'Updated: ' + ts;
+  document.getElementById('footer-ts').textContent = ts;
+
+  const players = Object.entries(data.players||{}).map(([name,s]) => ({
+    name, wins:s.wins||0, losses:s.losses||0,
+    titles:s.titles||0, top3:s.top3||0,
+    matches:s.matches||0, points:s.points||0,
+    winRate: s.matches>0 ? Math.round((s.wins/s.matches)*100) : 0,
+    tourneysPlayed: (s.gamesPlayed||[]).length,
+  })).sort((a,b)=>b.points-a.points||b.titles-a.titles||b.wins-a.wins||a.name.localeCompare(b.name));
+
+  const tournaments = [...(data.tournaments||[])].reverse();
+  const latest = tournaments[0] || null;
+  const maxPts = players[0]?.points || 1;
+
+  // Hero stats
+  document.getElementById('hs-players').textContent  = players.length;
+  document.getElementById('hs-tourneys').textContent = tournaments.length;
+  document.getElementById('hs-matches').textContent  = players.reduce((s,p)=>s+p.matches,0);
+  document.getElementById('hs-leader').textContent   = players[0]?.name || '—';
+
+  if (!players.length) {
+    document.getElementById('app').innerHTML = `<div class="empty">
+      <span class="empty-icon">🏆</span>
+      <div class="empty-text">NO DATA YET</div>
+      <div class="empty-sub">Complete a tournament and commit data.json to see results here.</div>
+    </div>`;
+    return;
+  }
+
+  // ── Podium ──────────────────────────────────────────────
+  function pod(p, rank) {
+    const medals = ['🥇','🥈','🥉'];
+    const labels = ['CHAMPION','RUNNER-UP','3RD PLACE'];
+    if (!p) return `<div class="pod pod-empty">
+      <div class="pod-rank">${labels[rank-1]}</div>
+      <span class="pod-medal">${medals[rank-1]}</span>
+      <div class="pod-name" style="color:var(--blue-dim)">---</div>
+    </div>`;
+    const barPct = Math.round((p.points/maxPts)*100);
+    return `<div class="pod pod-${rank}">
+      <div class="pod-rank">${labels[rank-1]}</div>
+      <span class="pod-medal">${medals[rank-1]}</span>
+      <div class="pod-name">${esc(p.name)}</div>
+      <div class="pod-pts">${p.points}<span class="pod-pts-unit"> pts</span></div>
+      <div class="pod-bar"><div class="pod-bar-fill" style="width:${barPct}%"></div></div>
+      <div class="pod-sub">${p.titles} title${p.titles!==1?'s':''} | ${p.wins}W ${p.losses}L | ${p.winRate}% WR</div>
+    </div>`;
+  }
+
+  // ── Standings rows ───────────────────────────────────────
+  const rows = players.map((p,i) => {
+    const cls = i===0?'row-gold':i===1?'row-silver':i===2?'row-bronze':'';
+    const icon = i<3 ? ['🥇','🥈','🥉'][i] : `<span class="rank-num">${i+1}</span>`;
+    const barPct = Math.round((p.points/maxPts)*100);
+    const wrCls = p.winRate>=60?'wr-hi':p.winRate>=40?'wr-mid':'wr-low';
+    const wr = p.matches>0 ? `<span class="${wrCls} wr-val">${p.winRate}%</span>` : '<span style="color:var(--blue-dim)">---</span>';
+    return `<tr class="${cls}" style="--d:${i*20}ms">
+      <td class="col-rank">${icon}</td>
+      <td class="col-name">${esc(p.name)}</td>
+      <td class="col-pts">${p.points}</td>
+      <td class="col-bar"><div class="bar-t"><div class="bar-f" style="width:${barPct}%"></div></div></td>
+      <td class="col-c">${p.titles}</td>
+      <td class="col-c">${p.wins}</td>
+      <td class="col-c">${p.losses}</td>
+      <td class="col-c">${wr}</td>
+      <td class="col-c">${p.tourneysPlayed}</td>
+    </tr>`;
+  }).join('');
+
+  // ── History cards ────────────────────────────────────────
+  const hist = tournaments.map((t,ti) => {
+    const d = new Date(t.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const fmt = {single_elimination:'Single Elim',double_elimination:'Double Elim',swiss:'Swiss'}[t.format]||t.format||'';
+    const mrows = (t.matchLog||[]).filter(m=>m.winner&&m.winner!=='BYE').map(m=>{
+      const badge = m.method!=='gg'?`<span class="mbadge">${esc(m.method)}</span>`:'';
+      return `<tr>
+        <td class="mcol-round">${esc(m.round||'')}</td>
+        <td>${esc(m.p1||'')}</td>
+        <td class="mcol-vs">vs</td>
+        <td>${esc(m.p2||'')}</td>
+        <td class="mcol-win">${esc(m.winner)}${badge}</td>
+      </tr>`;
+    }).join('');
+    const mc = (t.matchLog||[]).filter(m=>m.winner&&m.winner!=='BYE').length;
+    const places = [
+      t.champion ? `<span class="tplace g">🥇 ${esc(t.champion)}</span>` : '',
+      t.second   ? `<span class="tplace s">🥈 ${esc(t.second)}</span>`   : '',
+      t.third    ? `<span class="tplace b">🥉 ${esc(t.third)}</span>`    : '',
+    ].filter(Boolean).join('');
+
+    return `<div class="tcard" style="--d:${ti*35}ms">
+      <div class="tcard-top">
+        <div>
+          <div class="tcard-name">${esc(t.name)}</div>
+          <div class="tcard-meta">${esc(fmt)} | ${d} | ${(t.players||[]).length} players</div>
+        </div>
+        <div class="tcard-places">${places}</div>
+      </div>
+      ${mrows?`<details class="tdetail"><summary>Match Results <span class="det-count">${mc} games</span></summary>
+        <div class="mwrap"><table class="mtbl">
+          <thead><tr><th>Round</th><th>P1</th><th></th><th>P2</th><th>Winner</th></tr></thead>
+          <tbody>${mrows}</tbody>
+        </table></div>
+      </details>`:''}
+      <details class="tdetail"><summary>View Bracket</summary>
+        <div class="bwrap">${renderBracket(t.bracket)}</div>
+      </details>
+    </div>`;
+  }).join('');
+
+  // ── Inject HTML ──────────────────────────────────────────
+  document.getElementById('app').innerHTML = `
+
+  <!-- STANDINGS -->
+  <div class="section" id="standings">
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-title">Standings — All Time</div>
+      <div style="padding:12px 14px">
+        <div class="pts-legend">
+          <span class="ptag g">🥇 1st = 10 pts</span>
+          <span class="ptag s">🥈 2nd = 5 pts</span>
+          <span class="ptag b">🥉 3rd = 2 pts</span>
+          <span class="ptag n">Participated = 1 pt</span>
+        </div>
+        <div class="podium">
+          ${pod(players[1]||null,2)}
+          ${pod(players[0]||null,1)}
+          ${pod(players[2]||null,3)}
+        </div>
+        <div class="table-wrap">
+          <table class="stbl">
+            <thead><tr>
+              <th class="tc">#</th>
+              <th>Player</th>
+              <th>Points</th>
+              <th style="min-width:100px">Progress</th>
+              <th class="tc">Titles</th>
+              <th class="tc">Wins</th>
+              <th class="tc">Losses</th>
+              <th class="tc">Win%</th>
+              <th class="tc">Tourneys</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BRACKET -->
+  <div class="section" id="bracket">
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-title">
+        Latest Bracket
+        ${latest ? `— <span style="color:var(--green);font-size:10px">${esc(latest.name)}</span>` : ''}
+      </div>
+      <div style="padding:14px">
+        ${latest ? renderBracket(latest.bracket) : '<div class="empty-sub" style="padding:10px">No bracket data yet.</div>'}
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="section" id="history">
+    <div class="panel">
+      <div class="panel-title">Tournament History <span style="color:var(--blue-dim);font-size:9px">(${tournaments.length} tournaments)</span></div>
+      <div style="padding:14px">
+        <div class="tcards">
+          ${hist || '<div class="empty-sub">No tournaments yet.</div>'}
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  // Nav scroll highlight
+  const sections = document.querySelectorAll('.section[id]');
+  const navBtns = document.querySelectorAll('.nav-btn');
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navBtns.forEach(b => b.classList.remove('on'));
+        const a = document.querySelector(`.nav-btn[href="#${e.target.id}"]`);
+        if (a) a.classList.add('on');
+      }
+    });
+  }, { rootMargin: '-30% 0px -65% 0px' });
+  sections.forEach(s => io.observe(s));
+}
+
+// ══════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════
+(async () => {
+  const data = await loadData();
+  if (!data) {
+    document.getElementById('app').innerHTML = `<div class="empty">
+      <span class="empty-icon">⚠️</span>
+      <div class="empty-text">ERROR</div>
+      <div class="empty-sub">Could not load data.json.<br>Make sure it exists in the same folder.</div>
+    </div>`;
+    return;
+  }
+  render(data);
+})();
+</script>
+</body>
+</html>
