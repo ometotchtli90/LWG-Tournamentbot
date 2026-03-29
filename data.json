@@ -1,14 +1,16 @@
 {
   "players": {
     "ConsciouslyEating": {
-      "wins": 1,
+      "wins": 3,
       "losses": 1,
-      "titles": 0,
-      "top3": 1,
-      "matches": 2,
-      "points": 5,
+      "titles": 1,
+      "top3": 2,
+      "matches": 4,
+      "points": 15,
       "gamesPlayed": [
-        "T-1774644050652"
+        "T-1774644050652",
+        "T-1774742721751",
+        "T-1774742721751"
       ]
     },
     "guest_583348": {
@@ -54,6 +56,39 @@
       "gamesPlayed": [
         "T-1774644050652",
         "T-1774644050652"
+      ]
+    },
+    "guest_872862": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": [
+        "T-1774742721751"
+      ]
+    },
+    "guest_049354": {
+      "wins": 1,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 2,
+      "points": 5,
+      "gamesPlayed": [
+        "T-1774742721751"
+      ]
+    },
+    "guest_822056": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 1,
+      "points": 2,
+      "gamesPlayed": [
+        "T-1774742721751"
       ]
     }
   },
@@ -176,7 +211,97 @@
           "crayon"
         ]
       }
+    },
+    {
+      "id": "T-1774742721751",
+      "name": "Tournament 29.3.2026",
+      "format": "single_elimination",
+      "date": 1774742896448,
+      "champion": "ConsciouslyEating",
+      "second": "guest_049354",
+      "third": "guest_822056",
+      "players": [
+        "ConsciouslyEating",
+        "guest_049354",
+        "guest_822056",
+        "guest_872862"
+      ],
+      "matchLog": [
+        {
+          "matchId": "SE-0-0",
+          "round": "Semi-Finals",
+          "p1": "guest_872862",
+          "p2": "ConsciouslyEating",
+          "winner": "ConsciouslyEating",
+          "loser": "guest_872862",
+          "method": "gg"
+        },
+        {
+          "matchId": "SE-0-1",
+          "round": "Semi-Finals",
+          "p1": "guest_049354",
+          "p2": "guest_822056",
+          "winner": "guest_049354",
+          "loser": "guest_822056",
+          "method": "gg"
+        },
+        {
+          "matchId": "SE-1-0",
+          "round": "Grand Final",
+          "p1": "ConsciouslyEating",
+          "p2": "guest_049354",
+          "winner": "ConsciouslyEating",
+          "loser": "guest_049354",
+          "method": "gg"
+        }
+      ],
+      "replayDir": "C:\\Users\\CE\\AppData\\Roaming\\lwg-tournament-bot\\replays",
+      "bracket": {
+        "format": "single_elimination",
+        "rounds": [
+          [
+            {
+              "p1": "guest_872862",
+              "p2": "ConsciouslyEating",
+              "winner": "ConsciouslyEating",
+              "loser": "guest_872862",
+              "id": "SE-0-0",
+              "bracket": "SE",
+              "roundIdx": 0,
+              "matchIdx": 0
+            },
+            {
+              "p1": "guest_049354",
+              "p2": "guest_822056",
+              "winner": "guest_049354",
+              "loser": "guest_822056",
+              "id": "SE-0-1",
+              "bracket": "SE",
+              "roundIdx": 0,
+              "matchIdx": 1
+            }
+          ],
+          [
+            {
+              "p1": "ConsciouslyEating",
+              "p2": "guest_049354",
+              "winner": "ConsciouslyEating",
+              "loser": "guest_049354",
+              "id": "SE-1-0",
+              "bracket": "SE",
+              "roundIdx": 1,
+              "matchIdx": 0
+            }
+          ]
+        ],
+        "eliminated": [
+          "guest_872862",
+          "guest_822056",
+          "guest_049354"
+        ],
+        "byeSeeds": []
+      }
     }
   ],
-  "updatedAt": 1774646973256
+  "updatedAt": 1774742906221
 }
