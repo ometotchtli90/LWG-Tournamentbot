@@ -1,215 +1,307 @@
 {
-  "updatedAt": 1743100800000,
   "players": {
     "ConsciouslyEating": {
-      "wins": 14, "losses": 3, "titles": 3, "top3": 4,
-      "matches": 17, "points": 38, "gamesPlayed": ["T-001","T-002","T-003","T-004"]
+      "wins": 3,
+      "losses": 1,
+      "titles": 1,
+      "top3": 2,
+      "matches": 4,
+      "points": 15,
+      "gamesPlayed": [
+        "T-1774644050652",
+        "T-1774742721751",
+        "T-1774742721751"
+      ]
     },
-    "crayon": {
-      "wins": 11, "losses": 5, "titles": 1, "top3": 3,
-      "matches": 16, "points": 22, "gamesPlayed": ["T-001","T-002","T-003","T-004"]
+    "guest_583348": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": [
+        "T-1774644050652"
+      ]
     },
     "Xizun": {
-      "wins": 8, "losses": 6, "titles": 0, "top3": 2,
-      "matches": 14, "points": 14, "gamesPlayed": ["T-001","T-002","T-003","T-004"]
-    },
-    "guest_831272": {
-      "wins": 7, "losses": 7, "titles": 0, "top3": 1,
-      "matches": 14, "points": 11, "gamesPlayed": ["T-001","T-002","T-003","T-004"]
+      "wins": 1,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 2,
+      "points": 2,
+      "gamesPlayed": [
+        "T-1774644050652"
+      ]
     },
     "tzonny97": {
-      "wins": 5, "losses": 6, "titles": 0, "top3": 1,
-      "matches": 11, "points": 9, "gamesPlayed": ["T-001","T-002","T-003"]
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": [
+        "T-1774644050652"
+      ]
     },
-    "DragonArcherZ": {
-      "wins": 4, "losses": 5, "titles": 0, "top3": 0,
-      "matches": 9, "points": 7, "gamesPlayed": ["T-002","T-003","T-004"]
+    "crayon": {
+      "wins": 2,
+      "losses": 0,
+      "titles": 1,
+      "top3": 1,
+      "matches": 2,
+      "points": 10,
+      "gamesPlayed": [
+        "T-1774644050652",
+        "T-1774644050652"
+      ]
     },
-    "guest_506492": {
-      "wins": 3, "losses": 5, "titles": 0, "top3": 0,
-      "matches": 8, "points": 6, "gamesPlayed": ["T-001","T-002","T-003"]
+    "guest_872862": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": [
+        "T-1774742721751"
+      ]
     },
-    "Unknown12z": {
-      "wins": 2, "losses": 4, "titles": 0, "top3": 0,
-      "matches": 6, "points": 5, "gamesPlayed": ["T-002","T-003","T-004"]
+    "guest_049354": {
+      "wins": 1,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 2,
+      "points": 5,
+      "gamesPlayed": [
+        "T-1774742721751"
+      ]
     },
-    "Noxy": {
-      "wins": 2, "losses": 3, "titles": 0, "top3": 0,
-      "matches": 5, "points": 4, "gamesPlayed": ["T-003","T-004"]
-    },
-    "guest_049249": {
-      "wins": 1, "losses": 4, "titles": 0, "top3": 0,
-      "matches": 5, "points": 4, "gamesPlayed": ["T-001","T-004"]
-    },
-    "BraveHeart": {
-      "wins": 1, "losses": 3, "titles": 0, "top3": 0,
-      "matches": 4, "points": 3, "gamesPlayed": ["T-001","T-002"]
-    },
-    "guest_923441": {
-      "wins": 0, "losses": 2, "titles": 0, "top3": 0,
-      "matches": 2, "points": 2, "gamesPlayed": ["T-003","T-004"]
+    "guest_822056": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 1,
+      "points": 2,
+      "gamesPlayed": [
+        "T-1774742721751"
+      ]
     }
   },
   "tournaments": [
     {
-      "id": "T-001",
-      "name": "Tournament #1",
+      "id": "T-1774644050652",
+      "name": "Tournament 27.3.2026",
       "format": "single_elimination",
-      "date": 1741910400000,
-      "champion": "ConsciouslyEating",
-      "second": "crayon",
-      "third": "tzonny97",
-      "players": ["ConsciouslyEating","crayon","tzonny97","guest_831272","guest_506492","guest_049249","BraveHeart","Xizun"],
-      "matchLog": [
-        {"round":"Quarter-Finals","p1":"ConsciouslyEating","p2":"guest_049249","winner":"ConsciouslyEating","loser":"guest_049249","method":"gg"},
-        {"round":"Quarter-Finals","p1":"crayon","p2":"BraveHeart","winner":"crayon","loser":"BraveHeart","method":"gg"},
-        {"round":"Quarter-Finals","p1":"tzonny97","p2":"guest_506492","winner":"tzonny97","loser":"guest_506492","method":"disconnect"},
-        {"round":"Quarter-Finals","p1":"guest_831272","p2":"Xizun","winner":"guest_831272","loser":"Xizun","method":"gg"},
-        {"round":"Semi-Finals","p1":"ConsciouslyEating","p2":"guest_831272","winner":"ConsciouslyEating","loser":"guest_831272","method":"gg"},
-        {"round":"Semi-Finals","p1":"crayon","p2":"tzonny97","winner":"crayon","loser":"tzonny97","method":"gg"},
-        {"round":"Final","p1":"ConsciouslyEating","p2":"crayon","winner":"ConsciouslyEating","loser":"crayon","method":"gg"}
-      ],
-      "bracket": {
-        "format": "single_elimination",
-        "rounds": [
-          [
-            {"id":"SE-0-0","p1":"ConsciouslyEating","p2":"guest_049249","winner":"ConsciouslyEating","loser":"guest_049249","roundIdx":0,"matchIdx":0},
-            {"id":"SE-0-1","p1":"crayon","p2":"BraveHeart","winner":"crayon","loser":"BraveHeart","roundIdx":0,"matchIdx":1},
-            {"id":"SE-0-2","p1":"tzonny97","p2":"guest_506492","winner":"tzonny97","loser":"guest_506492","roundIdx":0,"matchIdx":2},
-            {"id":"SE-0-3","p1":"guest_831272","p2":"Xizun","winner":"guest_831272","loser":"Xizun","roundIdx":0,"matchIdx":3}
-          ],
-          [
-            {"id":"SE-1-0","p1":"ConsciouslyEating","p2":"guest_831272","winner":"ConsciouslyEating","loser":"guest_831272","roundIdx":1,"matchIdx":0},
-            {"id":"SE-1-1","p1":"crayon","p2":"tzonny97","winner":"crayon","loser":"tzonny97","roundIdx":1,"matchIdx":1}
-          ],
-          [
-            {"id":"SE-2-0","p1":"ConsciouslyEating","p2":"crayon","winner":"ConsciouslyEating","loser":"crayon","roundIdx":2,"matchIdx":0}
-          ]
-        ],
-        "eliminated": ["guest_049249","BraveHeart","guest_506492","Xizun","guest_831272","tzonny97","crayon"]
-      }
-    },
-    {
-      "id": "T-002",
-      "name": "Tournament #2",
-      "format": "single_elimination",
-      "date": 1742342400000,
+      "date": 1774646973248,
       "champion": "crayon",
       "second": "ConsciouslyEating",
-      "third": "DragonArcherZ",
-      "players": ["ConsciouslyEating","crayon","DragonArcherZ","guest_831272","tzonny97","BraveHeart","Unknown12z","guest_506492"],
-      "matchLog": [
-        {"round":"Quarter-Finals","p1":"crayon","p2":"guest_506492","winner":"crayon","loser":"guest_506492","method":"gg"},
-        {"round":"Quarter-Finals","p1":"ConsciouslyEating","p2":"Unknown12z","winner":"ConsciouslyEating","loser":"Unknown12z","method":"gg"},
-        {"round":"Quarter-Finals","p1":"DragonArcherZ","p2":"BraveHeart","winner":"DragonArcherZ","loser":"BraveHeart","method":"disconnect"},
-        {"round":"Quarter-Finals","p1":"guest_831272","p2":"tzonny97","winner":"guest_831272","loser":"tzonny97","method":"gg"},
-        {"round":"Semi-Finals","p1":"crayon","p2":"guest_831272","winner":"crayon","loser":"guest_831272","method":"gg"},
-        {"round":"Semi-Finals","p1":"ConsciouslyEating","p2":"DragonArcherZ","winner":"ConsciouslyEating","loser":"DragonArcherZ","method":"gg"},
-        {"round":"Final","p1":"crayon","p2":"ConsciouslyEating","winner":"crayon","loser":"ConsciouslyEating","method":"gg"}
-      ],
-      "bracket": {
-        "format": "single_elimination",
-        "rounds": [
-          [
-            {"id":"SE-0-0","p1":"crayon","p2":"guest_506492","winner":"crayon","loser":"guest_506492","roundIdx":0,"matchIdx":0},
-            {"id":"SE-0-1","p1":"ConsciouslyEating","p2":"Unknown12z","winner":"ConsciouslyEating","loser":"Unknown12z","roundIdx":0,"matchIdx":1},
-            {"id":"SE-0-2","p1":"DragonArcherZ","p2":"BraveHeart","winner":"DragonArcherZ","loser":"BraveHeart","roundIdx":0,"matchIdx":2},
-            {"id":"SE-0-3","p1":"guest_831272","p2":"tzonny97","winner":"guest_831272","loser":"tzonny97","roundIdx":0,"matchIdx":3}
-          ],
-          [
-            {"id":"SE-1-0","p1":"crayon","p2":"guest_831272","winner":"crayon","loser":"guest_831272","roundIdx":1,"matchIdx":0},
-            {"id":"SE-1-1","p1":"ConsciouslyEating","p2":"DragonArcherZ","winner":"ConsciouslyEating","loser":"DragonArcherZ","roundIdx":1,"matchIdx":1}
-          ],
-          [
-            {"id":"SE-2-0","p1":"crayon","p2":"ConsciouslyEating","winner":"crayon","loser":"ConsciouslyEating","roundIdx":2,"matchIdx":0}
-          ]
-        ],
-        "eliminated": ["guest_506492","Unknown12z","BraveHeart","tzonny97","guest_831272","DragonArcherZ","ConsciouslyEating"]
-      }
-    },
-    {
-      "id": "T-003",
-      "name": "Tournament #3",
-      "format": "single_elimination",
-      "date": 1742774400000,
-      "champion": "ConsciouslyEating",
-      "second": "Xizun",
-      "third": "crayon",
-      "players": ["ConsciouslyEating","Xizun","crayon","DragonArcherZ","guest_831272","Unknown12z","Noxy","guest_923441","tzonny97"],
-      "matchLog": [
-        {"round":"Round 1","p1":"guest_923441","p2":"tzonny97","winner":"tzonny97","loser":"guest_923441","method":"gg"},
-        {"round":"Quarter-Finals","p1":"ConsciouslyEating","p2":"tzonny97","winner":"ConsciouslyEating","loser":"tzonny97","method":"gg"},
-        {"round":"Quarter-Finals","p1":"Xizun","p2":"Unknown12z","winner":"Xizun","loser":"Unknown12z","method":"gg"},
-        {"round":"Quarter-Finals","p1":"crayon","p2":"Noxy","winner":"crayon","loser":"Noxy","method":"disconnect"},
-        {"round":"Quarter-Finals","p1":"DragonArcherZ","p2":"guest_831272","winner":"DragonArcherZ","loser":"guest_831272","method":"gg"},
-        {"round":"Semi-Finals","p1":"ConsciouslyEating","p2":"DragonArcherZ","winner":"ConsciouslyEating","loser":"DragonArcherZ","method":"gg"},
-        {"round":"Semi-Finals","p1":"Xizun","p2":"crayon","winner":"Xizun","loser":"crayon","method":"gg"},
-        {"round":"Final","p1":"ConsciouslyEating","p2":"Xizun","winner":"ConsciouslyEating","loser":"Xizun","method":"gg"}
-      ],
-      "bracket": {
-        "format": "single_elimination",
-        "rounds": [
-          [
-            {"id":"SE-0-0","p1":"guest_923441","p2":"tzonny97","winner":"tzonny97","loser":"guest_923441","roundIdx":0,"matchIdx":0}
-          ],
-          [
-            {"id":"SE-1-0","p1":"ConsciouslyEating","p2":"tzonny97","winner":"ConsciouslyEating","loser":"tzonny97","roundIdx":1,"matchIdx":0},
-            {"id":"SE-1-1","p1":"Xizun","p2":"Unknown12z","winner":"Xizun","loser":"Unknown12z","roundIdx":1,"matchIdx":1},
-            {"id":"SE-1-2","p1":"crayon","p2":"Noxy","winner":"crayon","loser":"Noxy","roundIdx":1,"matchIdx":2},
-            {"id":"SE-1-3","p1":"DragonArcherZ","p2":"guest_831272","winner":"DragonArcherZ","loser":"guest_831272","roundIdx":1,"matchIdx":3}
-          ],
-          [
-            {"id":"SE-2-0","p1":"ConsciouslyEating","p2":"DragonArcherZ","winner":"ConsciouslyEating","loser":"DragonArcherZ","roundIdx":2,"matchIdx":0},
-            {"id":"SE-2-1","p1":"Xizun","p2":"crayon","winner":"Xizun","loser":"crayon","roundIdx":2,"matchIdx":1}
-          ],
-          [
-            {"id":"SE-3-0","p1":"ConsciouslyEating","p2":"Xizun","winner":"ConsciouslyEating","loser":"Xizun","roundIdx":3,"matchIdx":0}
-          ]
-        ],
-        "eliminated": ["guest_923441","tzonny97","Unknown12z","Noxy","guest_831272","DragonArcherZ","crayon","Xizun"]
-      }
-    },
-    {
-      "id": "T-004",
-      "name": "Tournament #4",
-      "format": "single_elimination",
-      "date": 1743100800000,
-      "champion": "crayon",
-      "second": "guest_831272",
       "third": "Xizun",
-      "players": ["crayon","guest_831272","Xizun","ConsciouslyEating","DragonArcherZ","Unknown12z","Noxy","guest_049249","guest_923441"],
-      "matchLog": [
-        {"round":"Round 1","p1":"guest_923441","p2":"guest_049249","winner":"guest_049249","loser":"guest_923441","method":"disconnect"},
-        {"round":"Quarter-Finals","p1":"crayon","p2":"guest_049249","winner":"crayon","loser":"guest_049249","method":"gg"},
-        {"round":"Quarter-Finals","p1":"guest_831272","p2":"Unknown12z","winner":"guest_831272","loser":"Unknown12z","method":"gg"},
-        {"round":"Quarter-Finals","p1":"Xizun","p2":"Noxy","winner":"Xizun","loser":"Noxy","method":"gg"},
-        {"round":"Quarter-Finals","p1":"ConsciouslyEating","p2":"DragonArcherZ","winner":"ConsciouslyEating","loser":"DragonArcherZ","method":"gg"},
-        {"round":"Semi-Finals","p1":"crayon","p2":"guest_831272","winner":"crayon","loser":"guest_831272","method":"gg"},
-        {"round":"Semi-Finals","p1":"Xizun","p2":"ConsciouslyEating","winner":"Xizun","loser":"ConsciouslyEating","method":"disconnect"},
-        {"round":"Final","p1":"crayon","p2":"guest_831272","winner":"crayon","loser":"guest_831272","method":"gg"}
+      "players": [
+        "ConsciouslyEating",
+        "tzonny97",
+        "Xizun",
+        "guest_583348",
+        "crayon"
       ],
+      "matchLog": [
+        {
+          "matchId": "SE-1-0",
+          "round": "Semi-Finals",
+          "p1": "ConsciouslyEating",
+          "p2": "guest_583348",
+          "winner": "ConsciouslyEating",
+          "loser": "guest_583348",
+          "method": "manual"
+        },
+        {
+          "matchId": "SE-0-0",
+          "round": "Quarter-Finals",
+          "p1": "Xizun",
+          "p2": "tzonny97",
+          "winner": "Xizun",
+          "loser": "tzonny97",
+          "method": "gg"
+        },
+        {
+          "matchId": "SE-1-1",
+          "round": "Semi-Finals",
+          "p1": "crayon",
+          "p2": "Xizun",
+          "winner": "crayon",
+          "loser": "Xizun",
+          "method": "gg"
+        },
+        {
+          "matchId": "SE-2-0",
+          "round": "Grand Final",
+          "p1": "ConsciouslyEating",
+          "p2": "crayon",
+          "winner": "crayon",
+          "loser": "ConsciouslyEating",
+          "method": "gg"
+        }
+      ],
+      "replayDir": "C:\\Users\\CE\\AppData\\Roaming\\lwg-tournament-bot\\replays",
       "bracket": {
         "format": "single_elimination",
         "rounds": [
           [
-            {"id":"SE-0-0","p1":"guest_923441","p2":"guest_049249","winner":"guest_049249","loser":"guest_923441","roundIdx":0,"matchIdx":0}
+            {
+              "p1": "Xizun",
+              "p2": "tzonny97",
+              "winner": "Xizun",
+              "loser": "tzonny97",
+              "id": "SE-0-0",
+              "bracket": "SE",
+              "roundIdx": 0,
+              "matchIdx": 0,
+              "nextMatchIdx": 1,
+              "nextMatchSlot": "p2"
+            }
           ],
           [
-            {"id":"SE-1-0","p1":"crayon","p2":"guest_049249","winner":"crayon","loser":"guest_049249","roundIdx":1,"matchIdx":0},
-            {"id":"SE-1-1","p1":"guest_831272","p2":"Unknown12z","winner":"guest_831272","loser":"Unknown12z","roundIdx":1,"matchIdx":1},
-            {"id":"SE-1-2","p1":"Xizun","p2":"Noxy","winner":"Xizun","loser":"Noxy","roundIdx":1,"matchIdx":2},
-            {"id":"SE-1-3","p1":"ConsciouslyEating","p2":"DragonArcherZ","winner":"ConsciouslyEating","loser":"DragonArcherZ","roundIdx":1,"matchIdx":3}
+            {
+              "p1": "ConsciouslyEating",
+              "p2": "guest_583348",
+              "winner": "ConsciouslyEating",
+              "loser": "guest_583348",
+              "id": "SE-1-0",
+              "bracket": "SE",
+              "roundIdx": 1,
+              "matchIdx": 0
+            },
+            {
+              "p1": "crayon",
+              "p2": "Xizun",
+              "winner": "crayon",
+              "loser": "Xizun",
+              "id": "SE-1-1",
+              "bracket": "SE",
+              "roundIdx": 1,
+              "matchIdx": 1
+            }
           ],
           [
-            {"id":"SE-2-0","p1":"crayon","p2":"guest_831272","winner":"crayon","loser":"guest_831272","roundIdx":2,"matchIdx":0},
-            {"id":"SE-2-1","p1":"Xizun","p2":"ConsciouslyEating","winner":"Xizun","loser":"ConsciouslyEating","roundIdx":2,"matchIdx":1}
-          ],
-          [
-            {"id":"SE-3-0","p1":"crayon","p2":"guest_831272","winner":"crayon","loser":"guest_831272","roundIdx":3,"matchIdx":0}
+            {
+              "p1": "ConsciouslyEating",
+              "p2": "crayon",
+              "winner": "crayon",
+              "loser": "ConsciouslyEating",
+              "id": "SE-2-0",
+              "bracket": "SE",
+              "roundIdx": 2,
+              "matchIdx": 0
+            }
           ]
         ],
-        "eliminated": ["guest_923441","guest_049249","Unknown12z","Noxy","DragonArcherZ","ConsciouslyEating","guest_831272"]
+        "eliminated": [
+          "guest_583348",
+          "tzonny97",
+          "Xizun",
+          "ConsciouslyEating"
+        ],
+        "byeSeeds": [
+          "ConsciouslyEating",
+          "guest_583348",
+          "crayon"
+        ]
+      }
+    },
+    {
+      "id": "T-1774742721751",
+      "name": "Tournament 29.3.2026",
+      "format": "single_elimination",
+      "date": 1774742896448,
+      "champion": "ConsciouslyEating",
+      "second": "guest_049354",
+      "third": "guest_822056",
+      "players": [
+        "ConsciouslyEating",
+        "guest_049354",
+        "guest_822056",
+        "guest_872862"
+      ],
+      "matchLog": [
+        {
+          "matchId": "SE-0-0",
+          "round": "Semi-Finals",
+          "p1": "guest_872862",
+          "p2": "ConsciouslyEating",
+          "winner": "ConsciouslyEating",
+          "loser": "guest_872862",
+          "method": "gg"
+        },
+        {
+          "matchId": "SE-0-1",
+          "round": "Semi-Finals",
+          "p1": "guest_049354",
+          "p2": "guest_822056",
+          "winner": "guest_049354",
+          "loser": "guest_822056",
+          "method": "gg"
+        },
+        {
+          "matchId": "SE-1-0",
+          "round": "Grand Final",
+          "p1": "ConsciouslyEating",
+          "p2": "guest_049354",
+          "winner": "ConsciouslyEating",
+          "loser": "guest_049354",
+          "method": "gg"
+        }
+      ],
+      "replayDir": "C:\\Users\\CE\\AppData\\Roaming\\lwg-tournament-bot\\replays",
+      "bracket": {
+        "format": "single_elimination",
+        "rounds": [
+          [
+            {
+              "p1": "guest_872862",
+              "p2": "ConsciouslyEating",
+              "winner": "ConsciouslyEating",
+              "loser": "guest_872862",
+              "id": "SE-0-0",
+              "bracket": "SE",
+              "roundIdx": 0,
+              "matchIdx": 0
+            },
+            {
+              "p1": "guest_049354",
+              "p2": "guest_822056",
+              "winner": "guest_049354",
+              "loser": "guest_822056",
+              "id": "SE-0-1",
+              "bracket": "SE",
+              "roundIdx": 0,
+              "matchIdx": 1
+            }
+          ],
+          [
+            {
+              "p1": "ConsciouslyEating",
+              "p2": "guest_049354",
+              "winner": "ConsciouslyEating",
+              "loser": "guest_049354",
+              "id": "SE-1-0",
+              "bracket": "SE",
+              "roundIdx": 1,
+              "matchIdx": 0
+            }
+          ]
+        ],
+        "eliminated": [
+          "guest_872862",
+          "guest_822056",
+          "guest_049354"
+        ],
+        "byeSeeds": []
       }
     }
-  ]
+  ],
+  "updatedAt": 1774742906221
 }
