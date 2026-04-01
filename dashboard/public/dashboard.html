@@ -371,7 +371,11 @@
         <button class="btn btn-blue btn-full" id="btnBoot" onclick="doBoot()">🚀 Launch Browsers</button>
         <div id="bootWarning" style="display:none;margin-top:6px;padding:8px 10px;border-radius:6px;
           background:#2d1a1a;border:1px solid var(--red);color:var(--red);font-size:11px;line-height:1.5;"></div>
-        <button class="btn btn-gold btn-full" id="btnOpenSignup" onclick="cmd('openSignup')" disabled>▶ Open Signup</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-gold" style="flex:1;" id="btnOpenSignupInstant" onclick="doOpenSignup('instant')" disabled>⚡ Open Signup</button>
+          <button class="btn btn-ghost" style="flex:1;" id="btnOpenSignupTimed"   onclick="doOpenSignup('timed')"   disabled>⏱ Timed Signup</button>
+        </div>
+        <div id="signupModeHint" style="display:none;font-size:10px;color:var(--muted);padding:4px 2px;"></div>
         <div id="signupTimer" style="display:none;text-align:center;padding:8px;border-radius:6px;
           background:var(--surface2);border:1px solid var(--border);font-size:13px;">
           <span id="signupTimerLabel" style="color:var(--gold);font-weight:700;font-size:16px;">2:00</span>
@@ -386,7 +390,7 @@
       </div>
       <div style="margin-top:6px;">
         <button class="btn btn-full" id="btnNewTourney" style="display:none;background:var(--green);color:#000;font-size:13px;font-weight:700;" onclick="doNewTournament()">▶ Start New Tournament</button>
-        <button class="btn btn-full" id="btnCancel" style="background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;font-size:12px;" onclick="doReset()">✕ Cancel Tournament</button>
+        <button class="btn btn-full" id="btnCancel" style="background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;font-size:12px;display:none;" onclick="doReset()">✕ Cancel Tournament</button>
       </div>
 
       <div style="height:1px;background:var(--border);margin:10px 0;"></div>
@@ -603,7 +607,9 @@ function showScreen(name) {
 // ── WebSocket ──────────────────────────────────────────────
 let ws;
 function connectWS() {
-  ws = new WebSocket(`ws://${location.host}`);
+  // Use wss:// when served over HTTPS (e.g. remote /Admin), ws:// locally
+  const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${wsProto}//${location.host}`);
   ws.onopen = () => {
     document.getElementById('connDot').classList.add('on');
     document.getElementById('connLabel').textContent = 'Connected';
@@ -648,15 +654,15 @@ function applyEvent(msg) {
       renderSignupTimer();
       break;
     case 'bracket':       S.bracket = msg.bracket; break;
-    case 'match_start':   S.activeMatches[msg.gameName] = { p1: msg.p1, p2: msg.p2, worker: msg.worker }; break;
+    case 'match_start':   S.activeMatches[msg.gameName] = { p1: msg.p1, p2: msg.p2, worker: msg.worker, matchId: msg.matchId }; break;
     case 'match_result':
     case 'match_error':   delete S.activeMatches[msg.gameName]; break;
     case 'reset':
       S = { phase: 'idle', format: S.format, players: [], bracket: null,
             activeMatches: {}, workers: S.workers, log: [], champion: null,
             requiredWorkers: S.requiredWorkers };
-      booted = false;
-      settingsLoaded = false; // allow settings to reload after reset
+      // Don't reset booted — browsers are still running, user can start signup immediately
+      settingsLoaded = false;
       break;
   }
   S.log.push(msg);
@@ -712,10 +718,22 @@ async function doBoot() {
 }
 
 // ── Actions ────────────────────────────────────────────────
+function doOpenSignup(mode) {
+  const format = document.querySelector('input[name="cfgFormat"]:checked')?.value || S.format || 'single_elimination';
+  cmd('openSignup', [format, mode]);
+}
+
 function doReset() { if (confirm('Cancel the current tournament and return to idle?')) cmd('reset'); }
 
 function doNewTournament() {
-  // No confirmation needed — tournament is already finished
+  // Update local state immediately so UI responds at once
+  S.phase         = 'idle';
+  S.players       = [];
+  S.bracket       = null;
+  S.activeMatches = {};
+  S.champion      = null;
+  render();
+  // Then tell the server
   cmd('reset');
 }
 
@@ -845,15 +863,38 @@ function renderButtons() {
     }
   }
 
-  document.getElementById('btnOpenSignup').disabled  = !booted || S.phase !== 'idle';
+  const signupDisabled = !booted || S.phase !== 'idle';
+  const btnInstant = document.getElementById('btnOpenSignupInstant');
+  const btnTimed   = document.getElementById('btnOpenSignupTimed');
+  if (btnInstant) btnInstant.disabled = signupDisabled;
+  if (btnTimed)   btnTimed.disabled   = signupDisabled;
+
+  // Show hint about timed mode capacity when booted
+  const hint = document.getElementById('signupModeHint');
+  if (hint) {
+    if (booted && S.phase === 'idle' && S.workers?.length) {
+      const cap = S.workers.length * 2;
+      hint.textContent = `⚡ closes when full · ⏱ runs full timer, up to ${cap} players`;
+      hint.style.display = 'block';
+    } else {
+      hint.style.display = 'none';
+    }
+  }
   document.getElementById('btnCloseSignup').disabled = S.phase !== 'signup';
 
+  // Swap Cancel ↔ New Tournament based on phase
+  const _isDone    = S.phase === 'done';
+  const _btnNew    = document.getElementById('btnNewTourney');
+  const _btnCancel = document.getElementById('btnCancel');
+  // New Tournament: only when done and browsers are running
+  if (_btnNew)    _btnNew.style.display    = (_isDone && booted) ? 'block' : 'none';
+  // Cancel: only when there is something active to cancel (signup or running)
+  // Hidden during idle (nothing to cancel) and done (replaced by New Tournament)
+  const _showCancel = !_isDone && S.phase !== 'idle';
+  if (_btnCancel) _btnCancel.style.display = _showCancel ? 'block' : 'none';
+
   // When tournament is done: show "Start New Tournament", hide "Cancel"
-  const isDone = S.phase === 'done';
-  const btnNew    = document.getElementById('btnNewTourney');
-  const btnCancel = document.getElementById('btnCancel');
-  if (btnNew)    btnNew.style.display    = isDone ? 'block' : 'none';
-  if (btnCancel) btnCancel.style.display = isDone ? 'none'  : 'block';
+
 }
 
 function validateBootConfig() {
@@ -929,7 +970,7 @@ function renderBracket() {
   if (!S.bracket) { el.innerHTML = '<span style="color:var(--muted)">No bracket yet.</span>'; return; }
 
   const fmt = S.bracket.format;
-  const active = Object.values(S.activeMatches || {}).map(a => a.matchId);
+  const active = Object.values(S.activeMatches || {}).map(a => a.matchId).filter(Boolean);
 
   function matchCard(m) {
     if (!m) return '';
@@ -1006,8 +1047,8 @@ function renderActiveMatches() {
   if (!entries.length) { el.innerHTML = '<span style="color:var(--muted)">None</span>'; return; }
   el.innerHTML = entries.map(([game, m]) => `
     <div class="amatch-row">
-      <span class="amatch-vs">${m.p1} vs ${m.p2}</span>
-      <span class="amatch-sub">${game} · ${m.worker}</span>
+      <span class="amatch-vs">${m.p1 || '?'} vs ${m.p2 || '?'}</span>
+      <span class="amatch-sub">${game} · ${m.worker || m.workerName || '?'}</span>
     </div>`).join('');
 }
 

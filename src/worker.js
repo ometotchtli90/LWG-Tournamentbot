@@ -373,19 +373,34 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
       const bracketIdx = rest.lastIndexOf('] ');
       const msgBody  = (bracketIdx >= 0 ? rest.slice(bracketIdx + 2) : rest).trim().toLowerCase();
       console.log(`  [${p1}v${p2}] ${sender}: "${msgBody.slice(0, 60)}"`);
-      const isGG = /^gg[^a-z]*$/.test(msgBody);
+      const isGG = /^gg[^a-z]*$/.test(msgBody)           // "gg", "GG", "gg!"
+                || /\bgg\b/.test(msgBody)                  // "ok gg", "gg wp", "gg guys"
+                || /^g+$/.test(msgBody);                   // "ggg", "gggg"
       if (!isGG) return;
       if (sender === p1l)      ggLoser = p1;
       else if (sender === p2l) ggLoser = p2;
       else return;
       console.log(`  [watchForResult] ${ggLoser} typed gg — resolving in 5s`);
-      // Notify controller immediately so safety monitor unsubscribes NOW,
-      // before the 5s delay. doResolve will also call onResultKnown but
-      // controller handles double-calls gracefully (matchResolved flag).
       if (onResultKnown) onResultKnown();
-      // Stop status poll immediately — gg has absolute priority over disconnect detection
       if (statusIv) clearInterval(statusIv);
       ggTimer = setTimeout(() => doResolve(ggLoser, 'gg'), 5000);
+    }, (type, payload) => {
+      // ── Method 3: protocol player-left ───────────────────
+      // LWG sends player-left<<$username the instant a player leaves a game.
+      // First tournament player to appear in player-left = the one who left first = loser.
+      // This fires before the status poller can even detect the change, and works
+      // for disconnects AND rage-quits — no gg needed.
+      if (type !== 'player-left' || resolved || ggTimer) return;
+      const parts    = payload.split('<<$');
+      const leftName = (parts[1] || '').trim().toLowerCase();
+      if (!leftName || leftName === 'undefined') return;
+      if (leftName !== p1l && leftName !== p2l) return; // not a tournament player
+      console.log(`  [protocol] player-left: ${leftName} — disconnect detected`);
+      const loser = leftName === p1l ? p1 : p2;
+      if (onResultKnown) onResultKnown();
+      if (statusIv) clearInterval(statusIv);
+      // 800ms delay so gg (if typed simultaneously) can still win
+      setTimeout(() => doResolve(loser, 'disconnect'), 800);
     });
 
     // ── Method 2: status poll via controller page ────────

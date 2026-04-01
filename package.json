@@ -9,7 +9,6 @@
   "scripts": {
     "start":    "electron .",
     "dist:win": "electron-builder --win --x64",
-    "dist:mac": "electron-builder --mac",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -25,29 +24,21 @@
   "build": {
     "appId":       "com.lwg.tournament-bot",
     "productName": "LWG Tournament Bot",
-    "directories": {
-      "output": "dist"
-    },
+    "directories": { "output": "dist" },
     "files": [
       "src/**/*",
       "dashboard/**/*",
       "node_modules/**/*",
       "package.json"
     ],
-    "extraResources": [],
     "win": {
-      "target": [
-        { "target": "nsis", "arch": ["x64"] }
-      ],
-      "icon": "dashboard/public/icon.ico"
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
     },
     "nsis": {
-      "oneClick":              false,
+      "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon":         "dashboard/public/icon.ico",
-      "uninstallerIcon":       "dashboard/public/icon.ico",
-      "shortcutName":          "LWG Tournament Bot",
-      "runAfterFinish":        true
+      "shortcutName": "LWG Tournament Bot",
+      "runAfterFinish": true
     }
   }
 }

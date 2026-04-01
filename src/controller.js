@@ -193,11 +193,25 @@ async function chat(text) {
 }
 
 // ── Signup ────────────────────────────────────────────────
-async function openSignup(format) {
+async function openSignup(format, signupMode) {
   if (state.phase !== 'idle') return;
-  state.phase   = 'signup';
-  state.format  = format || cfg.bracketFormat || 'single_elimination';
-  state.players = [];
+  state.phase      = 'signup';
+  state.format     = format || cfg.bracketFormat || 'single_elimination';
+  state.players    = [];
+
+  // ── Signup mode ────────────────────────────────────────
+  // 'instant' (default): closes as soon as maxPlayers reached OR timer expires
+  // 'timed':  always runs full timer — accepts as many players as possible up to
+  //           the worker-capacity maximum, never closes early
+  const mode = signupMode === 'timed' ? 'timed' : 'instant';
+  state._signupMode = mode;
+
+  // For timed mode: max players = workers * 2 (maximum the bots can handle)
+  const effectiveMax = mode === 'timed'
+    ? state.workerPages.length * 2
+    : cfg.maxPlayers;
+  state._signupEffectiveMax = effectiveMax;
+
   const totalMs  = cfg.signupDurationMs;
   const mins     = Math.floor(totalMs / 60000);
   const secs     = Math.round((totalMs % 60000) / 1000);
@@ -210,17 +224,18 @@ async function openSignup(format) {
     ? (halfSecs > 0 ? `${halfMins}m ${halfSecs}s` : `${halfMins} minute${halfMins > 1 ? 's' : ''}`)
     : `${halfSecs}s`;
   const fmtLabel  = { single_elimination: 'Single Elim', double_elimination: 'Double Elim' }[state.format] || state.format;
-  await chat(`🏆 TOURNAMENT SIGNUP [${fmtLabel}]! Type "${cfg.signupKeyword}" to enter. ${timeLabel}! Type "${cfg.leaveKeyword}" to unregister.`);
-  emit('phase', { phase: 'signup', format: state.format });
+  const modeLabel = mode === 'timed' ? ` · max ${effectiveMax} players` : '';
 
-  state._signupStart = Date.now();
+  await chat(`🏆 TOURNAMENT SIGNUP [${fmtLabel}${modeLabel}]! Type "${cfg.signupKeyword}" to enter. ${timeLabel}! Type "${cfg.leaveKeyword}" to unregister.`);
+  emit('phase', { phase: 'signup', format: state.format, signupMode: mode, effectiveMax });
+
+  state._signupStart  = Date.now();
   state._signupTimers = [];
 
-  const LONG_SIGNUP_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
-  const REMINDER_INTERVAL_MS     =  5 * 60 * 1000; // every 5 minutes
+  const LONG_SIGNUP_THRESHOLD_MS = 20 * 60 * 1000;
+  const REMINDER_INTERVAL_MS     =  5 * 60 * 1000;
 
   if (totalMs > LONG_SIGNUP_THRESHOLD_MS) {
-    // For long signups: send a reminder every 5 minutes until close
     let elapsed = 0;
     while (elapsed + REMINDER_INTERVAL_MS < totalMs) {
       elapsed += REMINDER_INTERVAL_MS;
@@ -229,12 +244,11 @@ async function openSignup(format) {
         if (state.phase !== 'signup') return;
         const remaining = totalMs - (Date.now() - state._signupStart);
         const rMins = Math.ceil(remaining / 60000);
-        await chat(`⏰ ${rMins} minute${rMins !== 1 ? 's' : ''} left to sign up! ${state.players.length}/${cfg.maxPlayers} registered. Type "${cfg.signupKeyword}" to join!`);
+        await chat(`⏰ ${rMins} minute${rMins !== 1 ? 's' : ''} left to sign up! ${state.players.length}/${effectiveMax} registered. Type "${cfg.signupKeyword}" to join!`);
         emit('signup_tick', { remaining, players: state.players.length });
       }, reminderMs));
     }
   } else {
-    // For short signups: single reminder at the halfway point
     state._signupTimers.push(setTimeout(async () => {
       if (state.phase !== 'signup') return;
       await chat(`⏰ ${halfLabel} left! ${state.players.length} registered.`);
@@ -242,10 +256,10 @@ async function openSignup(format) {
     }, totalMs / 2));
   }
 
-  // Auto-close timer
+  // Auto-close timer — always fires for both modes
   state._signupTimers.push(setTimeout(closeSignup, totalMs));
 
-  // Emit a tick every second for the dashboard countdown timer
+  // Tick for dashboard countdown
   state._signupTickInterval = setInterval(() => {
     if (state.phase !== 'signup') { clearInterval(state._signupTickInterval); return; }
     const remaining = Math.max(0, totalMs - (Date.now() - state._signupStart));
@@ -255,14 +269,15 @@ async function openSignup(format) {
 
 async function registerPlayer(username) {
   if (state.players.includes(username)) return;
-  if (state.players.length >= cfg.maxPlayers) {
-    await chat(`⚠️ ${username}: tournament full.`); return;
+  const effectiveMax = state._signupEffectiveMax || cfg.maxPlayers;
+  if (state.players.length >= effectiveMax) {
+    await chat(`⚠️ ${username}: tournament full (${effectiveMax} players max).`); return;
   }
   state.players.push(username);
   emit('player_joined', { username, count: state.players.length });
-  await chat(`✅ ${username} joined! (${state.players.length}/${cfg.maxPlayers})`);
-  // Auto-close signup when player count reaches max
-  if (state.players.length >= cfg.maxPlayers) {
+  await chat(`✅ ${username} joined! (${state.players.length}/${effectiveMax})`);
+  // Auto-close only in instant mode when full
+  if (state._signupMode !== 'timed' && state.players.length >= effectiveMax) {
     await chat(`🔒 Tournament full! Closing signup and building bracket...`);
     closeSignup();
   }
@@ -271,8 +286,9 @@ async function registerPlayer(username) {
 async function unregisterPlayer(username) {
   if (!state.players.includes(username)) return;
   state.players = state.players.filter(p => p !== username);
+  const effectiveMax = state._signupEffectiveMax || cfg.maxPlayers;
   emit('player_left', { username, count: state.players.length });
-  await chat(`👋 ${username} left the tournament. (${state.players.length}/${cfg.maxPlayers})`);
+  await chat(`👋 ${username} left the tournament. (${state.players.length}/${effectiveMax})`);
 }
 
 async function closeSignup() {
@@ -282,8 +298,11 @@ async function closeSignup() {
     state._signupTickInterval = null;
   }
   if (state.players.length < cfg.minPlayers) {
-    await chat(`❌ Not enough players (${state.players.length}/${cfg.minPlayers}). Cancelled.`);
-    state.phase = 'idle'; emit('phase', { phase: 'idle' }); return;
+    await chat(`❌ Not enough players (${state.players.length}/${cfg.minPlayers} minimum). Cancelled.`);
+    state.phase = 'idle';
+    state._signupMode = null;
+    state._signupEffectiveMax = null;
+    emit('phase', { phase: 'idle' }); return;
   }
   await chat(`🔒 Signup closed! ${state.players.length} players.`);
   buildTournament();
@@ -342,7 +361,7 @@ async function dispatchReadyMatches() {
     }
     const gameName = `${cfg.gameNamePrefix}_${match.id}`;
     worker.busy = true;
-    state.activeMatches[match.id] = { match, workerName: worker.username, gameName };
+    state.activeMatches[match.id] = { match, workerName: worker.username, gameName, p1: match.p1, p2: match.p2, matchId: match.id };
     assignments.push({ match, worker, gameName });
     // Announce from controller immediately
     await chat(`${worker.username} will host: ${match.p1} vs ${match.p2}`);
@@ -410,9 +429,10 @@ function startMatch(match, worker, gameName) {
   const cancelToken = { cancelled: false };
   state.cancelTokens[match.id] = cancelToken;
 
-  // Called by worker the INSTANT gg is detected (before the 5s delay).
+  // Called by worker when result is detected (gg or player-left protocol).
+  // Only stops the safety monitor — does NOT set matchResolved.
+  // The actual result must still flow through .then() to be applied.
   function onResultKnown() {
-    matchResolved = true;
     unsubscribe();
   }
 
@@ -465,7 +485,7 @@ function startMatch(match, worker, gameName) {
           matchResolved    = false;
           workerSeenInMatch = false;
           worker.busy = true;
-          state.activeMatches[match.id] = { match, workerName: worker.username, gameName };
+          state.activeMatches[match.id] = { match, workerName: worker.username, gameName, p1: match.p1, p2: match.p2, matchId: match.id };
           emit('match_start', { gameName, p1: match.p1, p2: match.p2, worker: worker.username, matchId: match.id });
           startMatch(match, worker, gameName);
           return;
@@ -484,8 +504,8 @@ function startMatch(match, worker, gameName) {
     { replayDir: state.replayDir, matchId: match.id, roundName: B.getRoundName(match, state.bracket) }
   ).then(async result => {
     unsubscribe();
-    if (matchResolved && result.method !== 'gg') return;
-    if (result.method === 'cancelled') return;
+    if (result.method === 'cancelled') return; // Force Win already handled it
+    if (matchResolved) return;                 // Safety monitor already resolved it
     matchResolved = true;
 
     if (result.method === 'disconnect') {
@@ -494,7 +514,7 @@ function startMatch(match, worker, gameName) {
         matchResolved    = false;
         workerSeenInMatch = false;
         worker.busy = true;
-        state.activeMatches[match.id] = { match, workerName: worker.username, gameName };
+        state.activeMatches[match.id] = { match, workerName: worker.username, gameName, p1: match.p1, p2: match.p2, matchId: match.id };
         emit('match_start', { gameName, p1: match.p1, p2: match.p2, worker: worker.username, matchId: match.id });
         startMatch(match, worker, gameName);
         return;
@@ -903,7 +923,7 @@ async function dashboardCommand(cmd, args = []) {
         return { error: e.message };
       }
     }
-    case 'openSignup':   await openSignup(args[0]);              break;
+    case 'openSignup':   await openSignup(args[0], args[1]);        break;
     case 'closeSignup':  await closeSignup();                    break;
     case 'addPlayer':    await registerPlayer(args[0]);          break;
     case 'removePlayer': await unregisterPlayer(args[0]); break;

@@ -251,17 +251,25 @@ function watchLobbyChat(page, onMessage) {
 //   "Chat msg PlayerName: [to all] text"
 // We intercept this via Playwright's console event listener,
 // which is more reliable than polling the DOM.
-function watchGameChat(page, onLine) {
+function watchGameChat(page, onLine, onProtocol) {
   // Intercept LWG's own chat log: "Chat msg PlayerName: [to all] text"
   // This fires instantly when a player sends a message in-game.
+  // Also intercept protocol messages (games-list, player-left) from console.error.
   const handler = (msg) => {
-    if (msg.type() !== 'log') return; // ignore warnings/errors
     const text = msg.text();
-    if (text.startsWith('Chat msg ')) {
-      // Strip the prefix: "Chat msg " → "PlayerName: [to all] text"
+
+    if (msg.type() === 'log' && text.startsWith('Chat msg ')) {
       onLine(text.slice('Chat msg '.length));
+      return;
     }
-    // Ignore everything else — do NOT pass raw console lines
+
+    // Protocol messages come through as console.error:
+    // "main thread error parsing orders msg TYPE<<DATA"
+    if (msg.type() === 'error' && text.includes('parsing orders msg ')) {
+      const payload = text.replace(/^.*?parsing orders msg /, '');
+      const type    = payload.split('<<')[0];
+      if (onProtocol) onProtocol(type, payload);
+    }
   };
   page.on('console', handler);
 

@@ -645,7 +645,7 @@ async function loadData() {
   const bar = document.getElementById('lbar');
   bar.style.width = '30%';
   try {
-    const r = await fetch('data.json?t=' + Date.now());
+    const r = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     bar.style.width = '70%';
     const d = await r.json();
