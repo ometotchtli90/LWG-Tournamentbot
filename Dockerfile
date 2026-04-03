@@ -1,5 +1,14 @@
 FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
+# Install virtual display + VNC + noVNC for headed controller browser
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xvfb \
+    x11vnc \
+    fluxbox \
+    novnc \
+    websockify \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY package.json ./
@@ -8,11 +17,12 @@ RUN npm install --omit=dev --ignore-scripts
 COPY src/         ./src/
 COPY dashboard/   ./dashboard/
 COPY leaderboard/ ./leaderboard/
+COPY start.sh     /start.sh
 
-# data/ and logs/ are runtime-only — not baked into the image.
-# Mount a persistent volume in Coolify to /app/data so that
-# accounts.json and config-override.json survive redeploys.
-RUN mkdir -p /app/data /app/logs
+RUN chmod +x /start.sh \
+ && mkdir -p /app/data /app/logs
 
-EXPOSE 4321
-CMD ["node", "src/server.js"]
+# 4321 = bot API/dashboard   6080 = noVNC web viewer
+EXPOSE 4321 6080
+
+CMD ["/start.sh"]

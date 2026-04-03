@@ -127,20 +127,27 @@ function getCachedStatus(username) {
 async function boot(accounts) {
   console.log('\n🏆 Tournament Bot booting...');
 
-  const { browser: cb, channel } = await launchBrowser(false);
+  // HEADLESS=true/false applies to workers (default: true)
+  // CONTROLLER_HEADLESS=true/false applies to the controller browser only
+  // (default: same as HEADLESS, set to false to watch via VNC)
+  const workersHeadless    = process.env.HEADLESS            !== 'false';
+  const controllerHeadless = process.env.CONTROLLER_HEADLESS !== undefined
+    ? process.env.CONTROLLER_HEADLESS !== 'false'
+    : workersHeadless;
+
+  const { browser: cb, channel } = await launchBrowser(controllerHeadless);
   state.browser = cb;
   emit('browser_channel', { channel });
 
-  console.log(`  Controller: ${accounts.controller.username}`);
+  console.log(`  Controller: ${accounts.controller.username} (headless=${controllerHeadless})`);
   const ctrlCtx = await cb.newContext();
   const cp      = await ctrlCtx.newPage();
   await ph.navigateToLobby(cp);
   await ph.login(cp, accounts.controller.username, accounts.controller.password);
   state.controllerPage = cp;
 
-  const workerHeadless = process.env.HEADLESS !== 'false';
-  const { browser: wb } = await launchBrowser(workerHeadless);
-  console.log(`  Workers headless: ${workerHeadless} (run with HEADLESS=false to show worker windows)`);
+  const { browser: wb } = await launchBrowser(workersHeadless);
+  console.log(`  Workers headless: ${workersHeadless}`);
   state.workerBrowser   = wb;
 
   for (const acc of accounts.workers) {
