@@ -1,8 +1,13 @@
 #!/bin/sh
 set -e
-if [ -n "$DASHBOARD_HTPASSWD" ]; then
-  echo "$DASHBOARD_HTPASSWD" > /usr/share/nginx/html/leaderboard/.htpasswd
-  echo "[htpasswd] Written from DASHBOARD_HTPASSWD env variable."
-else
-  echo "[htpasswd] WARNING: DASHBOARD_HTPASSWD not set — /Admin will return 500."
+
+USER="${ADMIN_USER:-admin}"
+PASS="${ADMIN_PASSWORD}"
+
+if [ -z "$PASS" ]; then
+  echo "[htpasswd] WARNING: ADMIN_PASSWORD not set — /Admin will return 403."
+  exit 0
 fi
+
+echo "${USER}:{PLAIN}${PASS}" > /usr/share/nginx/html/leaderboard/.htpasswd
+echo "[htpasswd] Written for user '${USER}'."
