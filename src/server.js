@@ -34,7 +34,13 @@ function startServer() {
 
   const publicDir = path.join(__dirname, '..', 'dashboard', 'public');
   app.use(express.static(publicDir));
-  app.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'dashboard.html')));
+
+  // Serve dashboard for root and any /Admin variant so nginx only needs a
+  // single blanket proxy_pass — no per-location blocks required.
+  const dashboardHtml = path.join(publicDir, 'dashboard.html');
+  app.get('/', (_req, res) => res.sendFile(dashboardHtml));
+  app.get('/Admin', (_req, res) => res.sendFile(dashboardHtml));
+  app.get('/admin', (_req, res) => res.sendFile(dashboardHtml));
 
   // ── Accounts ────────────────────────────────
   app.get('/api/accounts', (_req, res) => {
