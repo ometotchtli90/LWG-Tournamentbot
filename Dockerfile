@@ -1,7 +1,10 @@
 FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
+ENV TZ=UTC DEBIAN_FRONTEND=noninteractive
+
 # Install virtual display + VNC + noVNC for headed controller browser
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
     fluxbox \
