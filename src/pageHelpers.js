@@ -85,7 +85,17 @@ async function login(page, username, password) {
   await page.keyboard.press('Enter');
 
   console.log(`    [${username}] Waiting for login confirmation...`);
-  await page.waitForSelector('#playerNameDisplay', { timeout: 20000 });
+  // Wait for element to exist in DOM (it can be hidden in the game UI) and
+  // not show a guest name, which would mean login hasn't completed yet.
+  await page.waitForFunction(
+    () => {
+      const el = document.getElementById('playerNameDisplay');
+      if (!el) return false;
+      const text = el.innerText || el.textContent || '';
+      return text.trim().length > 0 && !text.toLowerCase().includes('guest');
+    },
+    { timeout: 60000 }
+  );
   console.log(`  ✓ Logged in as ${username}`);
 }
 
