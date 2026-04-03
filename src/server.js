@@ -32,15 +32,46 @@ function startServer() {
 
   app.use(express.json());
 
-  const publicDir = path.join(__dirname, '..', 'dashboard', 'public');
-  app.use(express.static(publicDir));
+  // ── Basic auth ───────────────────────────────────────────
+  function basicAuth(req, res, next) {
+    const expectedUser = process.env.ADMIN_USER     || 'admin';
+    const expectedPass = process.env.ADMIN_PASSWORD || '';
+    if (!expectedPass) {
+      return res.status(403).send('Forbidden: ADMIN_PASSWORD env var not set');
+    }
+    const header = req.headers['authorization'] || '';
+    if (header.startsWith('Basic ')) {
+      const decoded = Buffer.from(header.slice(6), 'base64').toString();
+      const colon   = decoded.indexOf(':');
+      const user    = decoded.slice(0, colon);
+      const pass    = decoded.slice(colon + 1);
+      if (user === expectedUser && pass === expectedPass) return next();
+    }
+    res.set('WWW-Authenticate', 'Basic realm="LWG Tournament Bot"');
+    res.status(401).send('Unauthorized');
+  }
 
-  // Serve dashboard for root and any /Admin variant so nginx only needs a
-  // single blanket proxy_pass — no per-location blocks required.
-  const dashboardHtml = path.join(publicDir, 'dashboard.html');
-  app.get('/', (_req, res) => res.sendFile(dashboardHtml));
-  app.get('/Admin', (_req, res) => res.sendFile(dashboardHtml));
-  app.get('/admin', (_req, res) => res.sendFile(dashboardHtml));
+  // ── Static paths ─────────────────────────────────────────
+  const publicDir      = path.join(__dirname, '..', 'dashboard', 'public');
+  const leaderboardDir = path.join(__dirname, '..', 'leaderboard');
+  const dashboardHtml  = path.join(publicDir, 'dashboard.html');
+
+  // data.json — no-cache so scores are always fresh
+  app.get('/data.json', (_req, res) => {
+    res.set({ 'Cache-Control': 'no-store, no-cache, must-revalidate',
+               'Pragma': 'no-cache', 'Expires': '-1' });
+    res.sendFile(path.join(leaderboardDir, 'data.json'));
+  });
+
+  // Admin dashboard — password protected
+  app.get('/Admin', basicAuth, (_req, res) => res.sendFile(dashboardHtml));
+  app.get('/admin', basicAuth, (_req, res) => res.sendFile(dashboardHtml));
+
+  // Protect all /api/* routes with the same credentials
+  app.use('/api', basicAuth);
+
+  // Leaderboard static site at root (public, index.html served automatically)
+  app.use(express.static(leaderboardDir));
 
   // ── Accounts ────────────────────────────────
   app.get('/api/accounts', (_req, res) => {
