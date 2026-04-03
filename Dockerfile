@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/playwright:v1.42.0-jammy
 WORKDIR /app
 
 COPY package.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 COPY src/         ./src/
 COPY dashboard/   ./dashboard/
