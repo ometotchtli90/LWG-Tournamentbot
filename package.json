@@ -3,12 +3,11 @@
   "version": "1.0.0",
   "description": "Automated tournament bot for LittleWarGame.com",
   "main": "src/main.js",
-  "author": "ometotchtli90",
-  "license": "MIT",
-  "private": true,
   "scripts": {
-    "start":    "electron .",
-    "dist:win": "electron-builder --win --x64",
+    "start":      "node src/server.js",
+    "start:gui":  "electron .",
+    "pm2":        "pm2 start pm2.config.js",
+    "dist:win":   "electron-builder --win --x64",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {

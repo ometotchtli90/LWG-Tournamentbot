@@ -13,7 +13,7 @@ const { WebSocketServer } = require('ws');
 //   macOS:   ~/Library/Application Support/lwg-tournament-bot
 //   Linux:   ~/.config/lwg-tournament-bot
 const ACCOUNTS_PATH = path.join(app.getPath('userData'), 'accounts.json');
-const PORT = 3000;
+const PORT = 4321;
 
 let mainWindow   = null;
 let wss          = null;

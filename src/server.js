@@ -10,11 +10,22 @@ const fs       = require('fs');
 const { WebSocketServer } = require('ws');
 const controller = require('./controller');
 
-const PORT         = 3000;
+const PORT         = process.env.PORT || 4321;
 const CONFIG_PATH  = path.join(__dirname, 'config.js');
-const ACCOUNTS_PATH = path.join(__dirname, '..', 'accounts.json');
+const ACCOUNTS_PATH = path.join(__dirname, '..', 'data', 'accounts.json');
 
 function startServer() {
+  // Load config overrides (same as Electron build)
+  try {
+    const overridePath = path.join(__dirname, '..', 'data', 'config-override.json');
+    if (fs.existsSync(overridePath)) {
+      const overrides = JSON.parse(fs.readFileSync(overridePath, 'utf8'));
+      const cfg = require('./config');
+      Object.assign(cfg, overrides);
+      console.log('Loaded config overrides:', overrides);
+    }
+  } catch (e) { console.warn('Config override load failed:', e.message); }
+
   const app    = express();
   const server = http.createServer(app);
   const wss    = new WebSocketServer({ server });
@@ -34,6 +45,7 @@ function startServer() {
 
   app.post('/api/accounts', (req, res) => {
     try {
+      fs.mkdirSync(path.dirname(ACCOUNTS_PATH), { recursive: true });
       fs.writeFileSync(ACCOUNTS_PATH, JSON.stringify(req.body, null, 2), 'utf8');
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -49,6 +61,9 @@ function startServer() {
     try {
       const cfg = require('./config');
       Object.assign(cfg, req.body);
+      const overridePath = path.join(__dirname, '..', 'data', 'config-override.json');
+      fs.mkdirSync(path.dirname(overridePath), { recursive: true });
+      fs.writeFileSync(overridePath, JSON.stringify(req.body, null, 2), 'utf8');
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -90,3 +105,8 @@ function startServer() {
 }
 
 module.exports = { startServer };
+
+// Auto-start when run directly (node src/server.js)
+if (require.main === module) {
+  startServer();
+}
