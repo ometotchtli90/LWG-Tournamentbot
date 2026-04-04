@@ -458,24 +458,24 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
 //
 // Returns { winner, loser, method, wins: { p1: n, p2: n } }
 async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, onStatus, getPlayerStatus, onResultKnown, cancelToken, replayOpts = {}) {
-  const log      = (msg) => console.log(`  [${workerName}] ${msg}`);
+  const log        = (msg) => console.log(`  [${workerName}] ${msg}`);
   const winsNeeded = Math.ceil(bestOf / 2);
-  const wins     = { [p1]: 0, [p2]: 0 };
-  let   gameNum  = 0;
-  let   pickedMap = mapPool[0];
+  const wins       = { [p1]: 0, [p2]: 0 };
+  let   gameNum    = 0;
+  // remainingMaps: the ordered list of maps to play — one per game in sequence.
+  // After bans this will be the surviving maps (e.g. 3 for BO3 with 5-map pool).
+  let remainingMaps = [...mapPool];
 
   // ── Map ban phase (only for BO3+ with pool of >1 maps) ────
   if (bestOf > 1 && mapPool.length > 1) {
-    const bansNeeded = mapPool.length - 1; // need to reduce pool to 1 map
-    log(`Map ban phase: pool=[${mapPool.join(', ')}], need ${bansNeeded} ban(s)`);
+    log(`Map ban phase: pool=[${mapPool.join(', ')}]`);
 
-    // Announce in main lobby chat
     const poolStr = mapPool.map((m, i) => `${i + 1}. ${m}`).join(' | ');
     await ph.sendLobbyChat(page,
-      `📍 MAP BAN — ${p1} vs ${p2} | Pool: ${poolStr} | Each player types !ban <mapname> to ban one map. You have 3 minutes.`
+      `📍 MAP BAN — ${p1} vs ${p2} | Pool: ${poolStr} | Each player types !ban <mapname>. You have 3 minutes.`
     );
-    await ph.sendPrivateMessage(page, p1, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat to ban one map.`).catch(() => {});
-    await ph.sendPrivateMessage(page, p2, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat to ban one map.`).catch(() => {});
+    await ph.sendPrivateMessage(page, p1, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`).catch(() => {});
+    await ph.sendPrivateMessage(page, p2, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`).catch(() => {});
 
     const banResult = await ph.waitForMapBans(
       page, p1, p2, mapPool, 3 * 60_000,
@@ -483,35 +483,41 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
       ph.watchLobbyChat
     );
 
-    pickedMap = banResult.pickedMap;
+    // Build remaining map list by removing both banned maps (preserve order)
+    const bannedLow = Object.values(banResult.bans).filter(Boolean).map(b => b.toLowerCase());
+    remainingMaps = mapPool.filter(m => !bannedLow.includes(m.toLowerCase()));
+
     const p1ban = banResult.bans[p1] || '(auto)';
     const p2ban = banResult.bans[p2] || '(auto)';
+    const mapsStr = remainingMaps.join(' → ');
     if (banResult.timedOut) {
-      await ph.sendLobbyChat(page, `⏰ Ban timer expired. ${p1} banned: ${p1ban} | ${p2} banned: ${p2ban} | Map: ${pickedMap}`);
+      await ph.sendLobbyChat(page, `⏰ Ban timer expired. Banned: ${p1ban} & ${p2ban} | Maps to play: ${mapsStr}`);
     } else {
-      await ph.sendLobbyChat(page, `✅ Bans done — ${p1} banned ${p1ban}, ${p2} banned ${p2ban}. Playing on: ${pickedMap}`);
+      await ph.sendLobbyChat(page, `✅ Bans done — ${p1} banned ${p1ban}, ${p2} banned ${p2ban} | Maps: ${mapsStr}`);
     }
-    log(`Map selected: ${pickedMap}`);
+    log(`Maps to play in order: ${mapsStr}`);
   }
 
-  // ── Series loop ────────────────────────────────────────────
+  // ── Series loop — each game plays the next map in sequence ──
   while (wins[p1] < winsNeeded && wins[p2] < winsNeeded) {
     if (cancelToken?.cancelled) return { winner: p1, loser: p2, method: 'cancelled', wins };
 
     gameNum++;
+    // Use next map in remaining list; wrap around if more games than maps (edge case)
+    const currentMap  = remainingMaps[(gameNum - 1) % remainingMaps.length];
     const seriesScore = `(${wins[p1]}-${wins[p2]})`;
     const gameLabel   = bestOf > 1 ? `Game ${gameNum} of BO${bestOf} ${seriesScore}` : '';
 
-    log(`${gameLabel} — map: ${pickedMap}`);
+    log(`${gameLabel} — map: ${currentMap}`);
     await ph.sendLobbyChat(page,
       bestOf > 1
-        ? `🎮 ${p1} vs ${p2} — ${gameLabel} | Map: ${pickedMap}`
-        : `🎮 ${p1} vs ${p2} | Map: ${pickedMap}`
+        ? `🎮 ${p1} vs ${p2} — ${gameLabel} | Map: ${currentMap}`
+        : `🎮 ${p1} vs ${p2} | Map: ${currentMap}`
     );
 
     // Override cfg.mapName for this game
     const origMap  = require('./config').mapName;
-    require('./config').mapName = pickedMap;
+    require('./config').mapName = currentMap;
 
     let result;
     try {
