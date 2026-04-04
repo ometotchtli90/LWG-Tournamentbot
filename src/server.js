@@ -9,6 +9,7 @@ const path     = require('path');
 const fs       = require('fs');
 const { WebSocketServer } = require('ws');
 const controller = require('./controller');
+const scheduler  = require('./scheduler');
 
 const PORT         = process.env.PORT || 4321;
 const CONFIG_PATH  = path.join(__dirname, 'config.js');
@@ -78,6 +79,33 @@ function startServer() {
 
   // Leaderboard static site at root (public, index.html served automatically)
   app.use(express.static(leaderboardDir));
+
+  // ── Schedules ────────────────────────────────
+  app.get('/api/schedules', (_req, res) => {
+    res.json(scheduler.listSchedules());
+  });
+
+  app.post('/api/schedules', (req, res) => {
+    try {
+      const sched = scheduler.addSchedule(req.body);
+      res.json(sched);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put('/api/schedules/:id', (req, res) => {
+    try {
+      const sched = scheduler.updateSchedule(req.params.id, req.body);
+      if (!sched) return res.status(404).json({ error: 'Schedule not found' });
+      res.json(sched);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete('/api/schedules/:id', (req, res) => {
+    try {
+      scheduler.deleteSchedule(req.params.id);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
 
   // ── Accounts ────────────────────────────────
   app.get('/api/accounts', (_req, res) => {
@@ -150,6 +178,9 @@ function startServer() {
   wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'snapshot', ...controller.getSnapshot() }));
   });
+
+  // Initialise scheduler (loads persisted schedules and starts cron jobs)
+  scheduler.init(controller);
 
   server.listen(PORT, () => console.log(`\n🌐 Dashboard: http://localhost:${PORT}\n`));
 }

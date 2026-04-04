@@ -4,26 +4,29 @@
   "description": "Automated tournament bot for LittleWarGame.com",
   "main": "src/main.js",
   "scripts": {
-    "start":      "node src/server.js",
-    "start:gui":  "electron .",
-    "pm2":        "pm2 start pm2.config.js",
-    "dist:win":   "electron-builder --win --x64",
+    "start": "node src/server.js",
+    "start:gui": "electron .",
+    "pm2": "pm2 start pm2.config.js",
+    "dist:win": "electron-builder --win --x64",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
-    "express":        "^4.18.2",
-    "playwright":     "1.59.1",
-    "ws":             "^8.16.0"
+    "express": "^4.18.2",
+    "node-schedule": "^2.1.1",
+    "playwright": "1.59.1",
+    "ws": "^8.16.0"
   },
   "devDependencies": {
-    "electron":         "^29.1.4",
+    "electron": "^29.1.4",
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId":       "com.lwg.tournament-bot",
+    "appId": "com.lwg.tournament-bot",
     "productName": "LWG Tournament Bot",
-    "directories": { "output": "dist" },
+    "directories": {
+      "output": "dist"
+    },
     "files": [
       "src/**/*",
       "dashboard/**/*",
@@ -31,7 +34,14 @@
       "package.json"
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
