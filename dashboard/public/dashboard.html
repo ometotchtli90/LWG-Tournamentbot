@@ -133,11 +133,9 @@
 
   #screenTournament {
     display: none;
-    grid-template-columns: 250px 1fr 270px;
-    gap: 2px;
-    background: var(--border);
+    flex-direction: column;
   }
-  #screenTournament.active { display: grid; }
+  #screenTournament.active { display: flex; }
 
   .panel {
     background: var(--navy);
@@ -419,6 +417,109 @@
   .amatch-row:last-child { border-bottom: none; }
   .amatch-vs  { font-family: var(--pixel); font-size: 9px; color: var(--blue-text); }
   .amatch-sub { font-size: 8px; color: var(--blue-dim); }
+
+  /* ── Top control bar ──────────────────────── */
+  #topBar {
+    display: flex;
+    gap: 2px;
+    background: var(--border);
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  #topBar > .tpanel {
+    flex-shrink: 0;
+    width: 220px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--navy);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ── Main area ───────────────────────────── */
+  #mainArea {
+    display: flex;
+    flex: 1;
+    gap: 2px;
+    background: var(--border);
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* ── Side panels (collapsible) ───────────── */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--navy);
+    flex-shrink: 0;
+    width: 240px;
+    overflow: hidden;
+    min-height: 0;
+    transition: width .15s ease;
+  }
+  .side-panel.collapsed { width: 26px; }
+
+  .side-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 9px;
+    background: var(--navy3);
+    border-bottom: 2px solid var(--border);
+    cursor: pointer;
+    font-family: var(--pixel);
+    font-size: 8px;
+    color: var(--gold);
+    flex-shrink: 0;
+    user-select: none;
+    letter-spacing: .05em;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .side-toggle:hover { background: var(--navy4); }
+  .side-toggle-lbl { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .side-toggle-icon { flex-shrink: 0; font-style: normal; font-size: 10px; }
+
+  .side-panel.collapsed .side-toggle {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    height: 100%;
+    padding: 12px 6px;
+    justify-content: flex-end;
+    border-bottom: none;
+    border-left: 2px solid var(--border);
+  }
+  .side-panel.collapsed .side-toggle-icon { display: none; }
+
+  .side-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+  .side-panel.collapsed .side-body { display: none; }
+
+  /* ── Center bracket panel ────────────────── */
+  #panelCenter {
+    flex: 1;
+    background: var(--navy);
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  /* overflow fix for pixel font in top bar */
+  #topBar .card-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #topBar .btn        { overflow: hidden; text-overflow: ellipsis; }
+  #topBar .section-label { white-space: nowrap; overflow: hidden; }
 </style>
 </head>
 <body>
@@ -445,113 +546,108 @@
 ═══════════════════════════════════════════════════════════ -->
 <div id="screenTournament" class="screen">
 
-  <!-- LEFT -->
-  <div class="panel">
+  <!-- ── TOP BAR: control panels ──────────────────────────── -->
+  <div id="topBar">
 
-    <!-- Launch + tournament flow -->
-    <div class="card">
+    <!-- Tournament -->
+    <div class="tpanel">
       <div class="card-title">Tournament</div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <button class="btn btn-blue btn-full" id="btnBoot" onclick="doBoot()">Launch Browsers</button>
-        <div id="bootWarning" style="display:none;margin-top:6px;padding:8px 10px;border-radius:6px;
-          background:#2d1a1a;border:1px solid var(--red);color:var(--red);font-size:11px;line-height:1.5;"></div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-gold" style="flex:1;font-size:12px;min-width:0;" id="btnOpenSignupInstant" onclick="doOpenSignup('instant')" disabled>Open Signup</button>
-          <button class="btn btn-ghost" style="flex:1;font-size:12px;min-width:0;" id="btnOpenSignupTimed"   onclick="doOpenSignup('timed')"   disabled>Timed Signup</button>
-        </div>
-        <div id="signupModeHint" style="display:none;font-size:10px;color:var(--muted);padding:4px 2px;"></div>
-        <div id="signupTimer" style="display:none;text-align:center;padding:8px;border-radius:6px;
-          background:var(--surface2);border:1px solid var(--border);font-size:13px;">
-          <span id="signupTimerLabel" style="color:var(--gold);font-weight:700;font-size:16px;">2:00</span>
-          <span style="color:var(--muted);font-size:11px;margin-left:6px;">remaining</span>
-        </div>
-        <button class="btn btn-ghost btn-full" id="btnCloseSignup" onclick="cmd('closeSignup')" disabled>⏹ Close Signup Early</button>
+      <button class="btn btn-blue btn-full btn-sm" id="btnBoot" onclick="doBoot()">Launch Browsers</button>
+      <div id="bootWarning" style="display:none;padding:5px 7px;background:#2d1a1a;border:1px solid var(--red);color:var(--red);font-size:8px;line-height:1.6;"></div>
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-gold btn-sm" style="flex:1;min-width:0;" id="btnOpenSignupInstant" onclick="doOpenSignup('instant')" disabled>Open Signup</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;min-width:0;" id="btnOpenSignupTimed" onclick="doOpenSignup('timed')" disabled>Timed</button>
       </div>
-      <div style="height:1px;background:var(--border);margin:10px 0;"></div>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-ghost" style="flex:1;font-size:12px;min-width:0;" onclick="cmd('printBracket')">Bracket</button>
-        <button class="btn btn-ghost" style="flex:1;font-size:12px;min-width:0;" onclick="cmd('standings')">Standings</button>
+      <div id="signupModeHint" style="display:none;font-size:8px;color:var(--muted);line-height:1.6;"></div>
+      <div id="signupTimer" style="display:none;text-align:center;padding:5px;background:var(--navy3);border:1px solid var(--border);">
+        <span id="signupTimerLabel" style="color:var(--gold);font-family:var(--pixel);font-size:13px;">2:00</span>
+        <span style="color:var(--muted);font-size:8px;margin-left:4px;">left</span>
       </div>
-      <div style="margin-top:6px;">
-        <button class="btn btn-full" id="btnNewTourney" style="display:none;background:var(--green);color:#000;font-size:13px;font-weight:700;" onclick="doNewTournament()">▶ Start New Tournament</button>
-        <button class="btn btn-full" id="btnCancel" style="background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;font-size:12px;display:none;" onclick="doReset()">✕ Cancel Tournament</button>
+      <button class="btn btn-ghost btn-full btn-sm" id="btnCloseSignup" onclick="cmd('closeSignup')" disabled>⏹ Close Signup</button>
+      <div style="height:1px;background:var(--border);margin:2px 0;"></div>
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="cmd('printBracket')">Bracket</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="cmd('standings')">Standings</button>
       </div>
-
-      <div style="height:1px;background:var(--border);margin:10px 0;"></div>
+      <button class="btn btn-full btn-sm" id="btnNewTourney" style="display:none;background:var(--green);color:#000;" onclick="doNewTournament()">▶ New Tournament</button>
+      <button class="btn btn-full btn-sm" id="btnCancel" style="display:none;background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;" onclick="doReset()">✕ Cancel</button>
+      <div style="height:1px;background:var(--border);margin:2px 0;"></div>
       <button class="btn btn-ghost btn-full btn-sm" onclick="doDownloadData()">📥 Download data.json</button>
     </div>
 
-    <!-- Add / remove / force win — one card -->
-    <div class="card">
+    <!-- Manual Controls -->
+    <div class="tpanel">
       <div class="card-title">Manual Controls</div>
-
       <div class="section-label">Add player</div>
       <div class="action-group">
-        <input id="inAddPlayer" type="text" placeholder="Username…"
-               onkeydown="if(event.key==='Enter')doAddPlayer()">
+        <input id="inAddPlayer" type="text" placeholder="Username…" onkeydown="if(event.key==='Enter')doAddPlayer()">
         <button class="action-btn green" onclick="doAddPlayer()">Add</button>
       </div>
-
       <div class="section-label">Remove player</div>
       <div class="action-group">
-        <input id="inRemovePlayer" type="text" placeholder="Username…"
-               onkeydown="if(event.key==='Enter')doRemovePlayer()">
+        <input id="inRemovePlayer" type="text" placeholder="Username…" onkeydown="if(event.key==='Enter')doRemovePlayer()">
         <button class="action-btn red" onclick="doRemovePlayer()">✕</button>
       </div>
-
       <div class="section-label">Force win</div>
       <div class="action-group">
-        <input id="inForceWin" type="text" placeholder="Winner name…"
-               onkeydown="if(event.key==='Enter')doForceWin()">
+        <input id="inForceWin" type="text" placeholder="Winner name…" onkeydown="if(event.key==='Enter')doForceWin()">
         <button class="action-btn ghost" onclick="doForceWin()">Apply</button>
       </div>
     </div>
 
     <!-- Workers -->
-    <div class="card">
-      <div class="card-title">
-        Workers
-        <span id="workerOnlineCount" style="color:var(--muted);font-weight:400;font-size:11px;"></span>
-      </div>
-      <div id="workerList"><span style="color:var(--muted);font-size:12px;">Not launched yet</span></div>
+    <div class="tpanel">
+      <div class="card-title">Workers <span id="workerOnlineCount" style="color:var(--muted);font-weight:400;font-size:8px;"></span></div>
+      <div id="workerList"><span style="color:var(--muted);font-size:9px;">Not launched yet</span></div>
     </div>
 
     <!-- Players -->
-    <div class="card">
-      <div class="card-title">
-        Players
-        <span id="playerCount" style="color:var(--muted);font-weight:400;">0</span>
+    <div class="tpanel">
+      <div class="card-title">Players <span id="playerCount" style="color:var(--muted);font-weight:400;">0</span></div>
+      <div id="playerList"><span style="color:var(--muted);font-size:9px;">None yet</span></div>
+    </div>
+
+  </div><!-- /topBar -->
+
+  <!-- ── MAIN AREA: bracket + collapsible sides ──────────── -->
+  <div id="mainArea">
+
+    <!-- LEFT: Active Matches (collapsible) -->
+    <div class="side-panel" id="panelLeft">
+      <div class="side-toggle" onclick="togglePanel('left')">
+        <span class="side-toggle-lbl">Active Matches</span>
+        <span class="side-toggle-icon" id="leftIcon">◀</span>
       </div>
-      <div id="playerList"><span style="color:var(--muted);font-size:12px;">None yet</span></div>
-    </div>
-
-  </div>
-
-  <!-- CENTRE -->
-  <div class="panel">
-    <div id="championBanner"></div>
-
-    <div class="card" style="flex:1;">
-      <div class="card-title">Bracket</div>
-      <div id="bracketArea"><span style="color:var(--muted)">No bracket yet.</span></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Active Matches</div>
-      <div id="activeMatchList"><span style="color:var(--muted)">None</span></div>
-    </div>
-  </div>
-
-  <!-- RIGHT -->
-  <div class="panel">
-    <div class="card" style="flex:1;min-height:0;">
-      <div class="card-title">
-        Event Log
-        <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+      <div class="side-body">
+        <div id="activeMatchList"><span style="color:var(--muted)">None</span></div>
       </div>
-      <ul id="logList"></ul>
     </div>
-  </div>
+
+    <!-- CENTER: Bracket -->
+    <div id="panelCenter">
+      <div id="championBanner"></div>
+      <div class="card" style="flex:1;min-height:0;">
+        <div class="card-title">Bracket</div>
+        <div id="bracketArea"><span style="color:var(--muted)">No bracket yet.</span></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Event Log (collapsible) -->
+    <div class="side-panel" id="panelRight">
+      <div class="side-toggle" onclick="togglePanel('right')">
+        <span class="side-toggle-icon" id="rightIcon">▶</span>
+        <span class="side-toggle-lbl">Event Log</span>
+      </div>
+      <div class="side-body">
+        <div class="card-title" style="margin-bottom:6px;">
+          Event Log
+          <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+        </div>
+        <ul id="logList"></ul>
+      </div>
+    </div>
+
+  </div><!-- /mainArea -->
 
 </div>
 
@@ -662,6 +758,16 @@ let S = {
   requiredWorkers: 2,
 };
 let booted = false;
+
+// ── Panel collapse ─────────────────────────────────────────
+function togglePanel(side) {
+  const panel = document.getElementById(side === 'left' ? 'panelLeft' : 'panelRight');
+  const icon  = document.getElementById(side === 'left' ? 'leftIcon' : 'rightIcon');
+  panel.classList.toggle('collapsed');
+  const c = panel.classList.contains('collapsed');
+  if (side === 'left') icon.textContent = c ? '▶' : '◀';
+  else                 icon.textContent = c ? '◀' : '▶';
+}
 
 // ── Screen nav ─────────────────────────────────────────────
 function showScreen(name) {
