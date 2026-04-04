@@ -505,8 +505,14 @@ function startMatch(match, worker, gameName) {
     } catch (_) {}
   });
 
-  workerMod.hostMatch(
+  // Determine series settings from per-format config
+  const fmtSettings = (cfg.formatSettings || {})[state.format] || {};
+  const mapPool     = fmtSettings.mapPool && fmtSettings.mapPool.length ? fmtSettings.mapPool : [cfg.mapName];
+  const bestOf      = fmtSettings.bestOf  || 1;
+
+  workerMod.hostSeries(
     worker.page, worker.username, gameName, match.p1, match.p2,
+    mapPool, bestOf,
     statusCb, getPlayerStatus, onResultKnown, cancelToken,
     { replayDir: state.replayDir, matchId: match.id, roundName: B.getRoundName(match, state.bracket) }
   ).then(async result => {

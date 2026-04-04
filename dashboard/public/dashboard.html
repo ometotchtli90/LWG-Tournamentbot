@@ -659,6 +659,7 @@
     <div class="settings-sub">Credentials are stored locally on your machine and never leave it.</div>
   </div>
 
+  <!-- Accounts -->
   <div class="card">
     <div class="settings-section-title">Controller Account</div>
     <div class="field-row">
@@ -681,50 +682,87 @@
     <div id="workerFields"></div>
   </div>
 
+  <!-- Global settings (signup, players, join wait) -->
   <div class="card">
-    <div class="settings-section-title">Tournament Settings</div>
+    <div class="settings-section-title">General Settings</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-
-      <div style="grid-column:1/-1;">
-        <div style="color:var(--muted);font-size:11px;margin-bottom:6px;">Bracket Format</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);">
-            <input type="radio" name="cfgFormat" id="fmtSE" value="single_elimination"> Single Elimination
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);">
-            <input type="radio" name="cfgFormat" id="fmtDE" value="double_elimination"> Double Elimination
-          </label>
-
-        </div>
-      </div>
-
       <div>
-        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Map Name</div>
-        <input id="cfgMap" type="text">
-      </div>
-
-      <div>
-        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Signup Duration (minutes)</div>
+        <div class="field-row-label">Signup Duration (min)</div>
         <input id="cfgSignup" type="text">
       </div>
       <div>
-        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Min Players</div>
+        <div class="field-row-label">Join Wait (min)</div>
+        <input id="cfgJoin" type="text">
+      </div>
+      <div>
+        <div class="field-row-label">Min Players</div>
         <input id="cfgMin" type="text">
       </div>
       <div>
-        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Max Players</div>
+        <div class="field-row-label">Max Players</div>
         <input id="cfgMax" type="text" oninput="updateWorkerHint()">
       </div>
-      <div>
-        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">Join Wait (minutes)</div>
-        <input id="cfgJoin" type="text">
+      <div style="grid-column:1/-1;background:var(--surface2);border:1px solid var(--border);padding:8px;">
+        <div style="font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px;">Worker Requirement</div>
+        <div id="workerHint" style="font-size:9px;color:var(--text);">—</div>
       </div>
+    </div>
+  </div>
 
-      <div style="grid-column:1/-1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px;">Worker Account Requirement</div>
-        <div id="workerHint" style="font-size:13px;color:var(--text);">—</div>
+  <!-- Format selector + per-format tabs -->
+  <div class="card">
+    <div class="settings-section-title">
+      Format &amp; Map Settings
+    </div>
+
+    <!-- Format radio + tab switcher -->
+    <div style="display:flex;gap:0;border:2px solid var(--border);margin-bottom:14px;overflow:hidden;">
+      <label id="tabLabelSE" style="flex:1;display:flex;align-items:center;gap:6px;padding:9px 14px;cursor:pointer;background:var(--navy4);border-right:2px solid var(--border);">
+        <input type="radio" name="cfgFormat" id="fmtSE" value="single_elimination" onchange="switchFormatTab('se')">
+        <span style="font-family:var(--pixel);font-size:8px;color:var(--gold);">Single Elim</span>
+      </label>
+      <label id="tabLabelDE" style="flex:1;display:flex;align-items:center;gap:6px;padding:9px 14px;cursor:pointer;background:var(--navy2);">
+        <input type="radio" name="cfgFormat" id="fmtDE" value="double_elimination" onchange="switchFormatTab('de')">
+        <span style="font-family:var(--pixel);font-size:8px;color:var(--blue-dim);">Double Elim</span>
+      </label>
+    </div>
+
+    <!-- Single Elim tab -->
+    <div id="tabSE" style="display:block;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="grid-column:1/-1;">
+          <div class="field-row-label">Map Name (single map, no bans)</div>
+          <input id="seCfgMap" type="text" placeholder="Ravaged">
+        </div>
+        <div>
+          <div class="field-row-label">Best Of</div>
+          <select id="seCfgBestOf" style="width:100%;background:var(--navy);border:2px solid var(--border);color:var(--white);font-family:var(--pixel);font-size:9px;padding:7px 10px;outline:none;">
+            <option value="1">BO1 (1 game)</option>
+            <option value="3">BO3 (first to 2)</option>
+          </select>
+        </div>
       </div>
+    </div>
 
+    <!-- Double Elim tab -->
+    <div id="tabDE" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="grid-column:1/-1;">
+          <div class="field-row-label">Map Pool (one per line — players !ban 2)</div>
+          <textarea id="deCfgMapPool" rows="5" style="width:100%;background:var(--navy);border:2px solid var(--border);color:var(--white);font-family:var(--pixel);font-size:9px;padding:7px 10px;resize:vertical;outline:none;line-height:1.8;" placeholder="Ravaged&#10;Silent Fjord LE&#10;Burning Sands&#10;Winter War&#10;Deadlock"></textarea>
+          <div style="font-size:8px;color:var(--muted);margin-top:4px;">5 maps → 2 bans → 1 played per game</div>
+        </div>
+        <div>
+          <div class="field-row-label">Best Of</div>
+          <select id="deCfgBestOf" style="width:100%;background:var(--navy);border:2px solid var(--border);color:var(--white);font-family:var(--pixel);font-size:9px;padding:7px 10px;outline:none;">
+            <option value="1">BO1 (1 game)</option>
+            <option value="3" selected>BO3 (first to 2)</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1;background:var(--navy3);border:1px solid var(--border);padding:8px;font-size:8px;color:var(--blue-dim);line-height:2;">
+          Players type <span style="color:var(--gold);">!ban &lt;mapname&gt;</span> in lobby chat before Game 1. Map names are fuzzy-matched. Both must ban before the series starts.
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1261,11 +1299,25 @@ function fmtLog(e) {
 
 // ── Settings ───────────────────────────────────────────────
 let cfgCache = null;
-
 let settingsLoaded = false;
 
+function switchFormatTab(tab) {
+  const isSE = tab === 'se';
+  document.getElementById('tabSE').style.display = isSE ? 'block' : 'none';
+  document.getElementById('tabDE').style.display = isSE ? 'none'  : 'block';
+  const lblSE = document.getElementById('tabLabelSE');
+  const lblDE = document.getElementById('tabLabelDE');
+  if (lblSE) {
+    lblSE.style.background = isSE ? 'var(--navy4)' : 'var(--navy2)';
+    lblSE.querySelector('span').style.color = isSE ? 'var(--gold)' : 'var(--blue-dim)';
+  }
+  if (lblDE) {
+    lblDE.style.background = isSE ? 'var(--navy2)' : 'var(--navy4)';
+    lblDE.querySelector('span').style.color = isSE ? 'var(--blue-dim)' : 'var(--gold)';
+  }
+}
+
 async function loadSettingsForm() {
-  // Only load from server once — after that, keep whatever the user has typed
   if (settingsLoaded) return;
   settingsLoaded = true;
 
@@ -1280,7 +1332,6 @@ async function loadSettingsForm() {
 
     const workers = accs.workers || [];
     const wf = document.getElementById('workerFields');
-    // Only build worker fields if they don't exist yet (preserve typed values)
     if (wf && wf.querySelectorAll('.worker-field-row').length === 0) {
       wf.innerHTML = '';
       workerFieldCount = 0;
@@ -1288,24 +1339,36 @@ async function loadSettingsForm() {
       if (!workers.length) { addWorkerField(); addWorkerField(); addWorkerField(); addWorkerField(); }
     }
     cfgCache = { workerCount: workers.length || 4 };
-    if (accs.leaderboard) {
-      document.getElementById('lbUrl').value    = accs.leaderboard.url    || '';
-      document.getElementById('lbSecret').value = accs.leaderboard.secret || '';
-    }
-
   }
 
   if (cfgRes) {
-    document.getElementById('cfgMap').value    = cfgRes.mapName || '';
-
     document.getElementById('cfgSignup').value = (cfgRes.signupDurationMs || 120000) / 60000;
     document.getElementById('cfgMin').value    = cfgRes.minPlayers ?? 4;
     document.getElementById('cfgMax').value    = cfgRes.maxPlayers ?? 4;
     document.getElementById('cfgJoin').value   = (cfgRes.joinWaitMs || 900000) / 60000;
-    // Set format radio
+
     const fmt = cfgRes.bracketFormat || 'single_elimination';
     const radio = document.querySelector(`input[name="cfgFormat"][value="${fmt}"]`);
     if (radio) radio.checked = true;
+    switchFormatTab(fmt === 'double_elimination' ? 'de' : 'se');
+
+    // Per-format fields
+    const fs = cfgRes.formatSettings || {};
+    const se = fs.single_elimination || {};
+    const de = fs.double_elimination || {};
+
+    const seMap = document.getElementById('seCfgMap');
+    if (seMap) seMap.value = (se.mapPool || [cfgRes.mapName || 'Ravaged'])[0] || 'Ravaged';
+
+    const seBo = document.getElementById('seCfgBestOf');
+    if (seBo) seBo.value = String(se.bestOf || 1);
+
+    const dePool = document.getElementById('deCfgMapPool');
+    if (dePool) dePool.value = (de.mapPool || ['Ravaged', 'Silent Fjord LE', 'Burning Sands', 'Winter War', 'Deadlock']).join('\n');
+
+    const deBo = document.getElementById('deCfgBestOf');
+    if (deBo) deBo.value = String(de.bestOf || 3);
+
     updateWorkerHint();
   }
 }
@@ -1350,8 +1413,20 @@ function updateWorkerHint() {
 }
 
 async function saveSettings() {
-  const workerRows = document.querySelectorAll('.worker-field-row');
-  const lbUrl = document.getElementById('lbUrl')?.value.trim();
+  const workerRows  = document.querySelectorAll('.worker-field-row');
+  const selectedFmt = document.querySelector('input[name="cfgFormat"]:checked')?.value || 'single_elimination';
+
+  const seMap   = (document.getElementById('seCfgMap')?.value || 'Ravaged').trim();
+  const seBestOf = parseInt(document.getElementById('seCfgBestOf')?.value || '1');
+  const dePool  = (document.getElementById('deCfgMapPool')?.value || '')
+                    .split('\n').map(l => l.trim()).filter(Boolean);
+  const deBestOf = parseInt(document.getElementById('deCfgBestOf')?.value || '3');
+
+  // mapName = whichever format is active (used as fallback in worker)
+  const mapName = selectedFmt === 'double_elimination'
+    ? (dePool[0] || 'Ravaged')
+    : seMap;
+
   const accounts = {
     controller: {
       username: document.getElementById('ctrlUser').value.trim(),
@@ -1361,31 +1436,34 @@ async function saveSettings() {
       username: row.querySelector('.wUsername')?.value.trim() || '',
       password: row.querySelector('.wPassword')?.value || '',
     })).filter(w => w.username),
-    leaderboard: lbUrl ? {
-      url:    lbUrl,
-      secret: document.getElementById('lbSecret')?.value || '',
-    } : null,
-
   };
 
-  const selectedFmt = document.querySelector('input[name="cfgFormat"]:checked')?.value || 'single_elimination';
   const config = {
-    mapName:          document.getElementById('cfgMap').value.trim(),
-
+    mapName,
     signupDurationMs: parseFloat(document.getElementById('cfgSignup').value) * 60000,
     minPlayers:       parseInt(document.getElementById('cfgMin').value),
     maxPlayers:       parseInt(document.getElementById('cfgMax').value),
     joinWaitMs:       parseFloat(document.getElementById('cfgJoin').value) * 60000,
     bracketFormat:    selectedFmt,
+    formatSettings: {
+      single_elimination: {
+        mapPool: [seMap],
+        bestOf:  seBestOf,
+      },
+      double_elimination: {
+        mapPool: dePool.length ? dePool : ['Ravaged', 'Silent Fjord LE', 'Burning Sands', 'Winter War', 'Deadlock'],
+        bestOf:  deBestOf,
+      },
+    },
   };
 
   await Promise.all([
     fetch('/api/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(accounts) }),
     fetch('/api/config',   { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) })
-      .then(r => r.json()).then(r => { if (!r.ok) console.error('Config save failed:', r); else console.log('Config saved:', config); }),
+      .then(r => r.json()).then(r => { if (!r.ok) console.error('Config save failed:', r); }),
   ]);
 
-  settingsLoaded = false;  // allow reload after save to confirm persisted values
+  settingsLoaded = false;
   const s = document.getElementById('saveStatus');
   s.classList.add('show');
   setTimeout(() => s.classList.remove('show'), 2500);

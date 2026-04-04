@@ -451,4 +451,95 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
 }
 
 
-module.exports = { hostMatch };
+// ── Host a Best-of-N series with optional map ban phase ─────
+// mapPool: string[] (≥1 map). If mapPool.length > 1 and both players
+//   need to ban, we ask them in lobby chat before game 1.
+// bestOf: 1 or 3 (first to ceil(bestOf/2) wins)
+//
+// Returns { winner, loser, method, wins: { p1: n, p2: n } }
+async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, onStatus, getPlayerStatus, onResultKnown, cancelToken, replayOpts = {}) {
+  const log      = (msg) => console.log(`  [${workerName}] ${msg}`);
+  const winsNeeded = Math.ceil(bestOf / 2);
+  const wins     = { [p1]: 0, [p2]: 0 };
+  let   gameNum  = 0;
+  let   pickedMap = mapPool[0];
+
+  // ── Map ban phase (only for BO3+ with pool of >1 maps) ────
+  if (bestOf > 1 && mapPool.length > 1) {
+    const bansNeeded = mapPool.length - 1; // need to reduce pool to 1 map
+    log(`Map ban phase: pool=[${mapPool.join(', ')}], need ${bansNeeded} ban(s)`);
+
+    // Announce in main lobby chat
+    const poolStr = mapPool.map((m, i) => `${i + 1}. ${m}`).join(' | ');
+    await ph.sendLobbyChat(page,
+      `📍 MAP BAN — ${p1} vs ${p2} | Pool: ${poolStr} | Each player types !ban <mapname> to ban one map. You have 3 minutes.`
+    );
+    await ph.sendPrivateMessage(page, p1, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat to ban one map.`).catch(() => {});
+    await ph.sendPrivateMessage(page, p2, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat to ban one map.`).catch(() => {});
+
+    const banResult = await ph.waitForMapBans(
+      page, p1, p2, mapPool, 3 * 60_000,
+      (msg) => ph.sendLobbyChat(page, msg),
+      ph.watchLobbyChat
+    );
+
+    pickedMap = banResult.pickedMap;
+    const p1ban = banResult.bans[p1] || '(auto)';
+    const p2ban = banResult.bans[p2] || '(auto)';
+    if (banResult.timedOut) {
+      await ph.sendLobbyChat(page, `⏰ Ban timer expired. ${p1} banned: ${p1ban} | ${p2} banned: ${p2ban} | Map: ${pickedMap}`);
+    } else {
+      await ph.sendLobbyChat(page, `✅ Bans done — ${p1} banned ${p1ban}, ${p2} banned ${p2ban}. Playing on: ${pickedMap}`);
+    }
+    log(`Map selected: ${pickedMap}`);
+  }
+
+  // ── Series loop ────────────────────────────────────────────
+  while (wins[p1] < winsNeeded && wins[p2] < winsNeeded) {
+    if (cancelToken?.cancelled) return { winner: p1, loser: p2, method: 'cancelled', wins };
+
+    gameNum++;
+    const seriesScore = `(${wins[p1]}-${wins[p2]})`;
+    const gameLabel   = bestOf > 1 ? `Game ${gameNum} of BO${bestOf} ${seriesScore}` : '';
+
+    log(`${gameLabel} — map: ${pickedMap}`);
+    await ph.sendLobbyChat(page,
+      bestOf > 1
+        ? `🎮 ${p1} vs ${p2} — ${gameLabel} | Map: ${pickedMap}`
+        : `🎮 ${p1} vs ${p2} | Map: ${pickedMap}`
+    );
+
+    // Override cfg.mapName for this game
+    const origMap  = require('./config').mapName;
+    require('./config').mapName = pickedMap;
+
+    let result;
+    try {
+      result = await hostMatch(
+        page, workerName,
+        `${gameName}_G${gameNum}`,
+        p1, p2,
+        onStatus, getPlayerStatus, onResultKnown, cancelToken,
+        { ...replayOpts, roundName: `${replayOpts.roundName || 'Match'}_G${gameNum}` }
+      );
+    } finally {
+      require('./config').mapName = origMap;
+    }
+
+    if (result.method === 'cancelled') return { winner: p1, loser: p2, method: 'cancelled', wins };
+
+    wins[result.winner]++;
+    log(`Game ${gameNum}: ${result.winner} wins — series ${p1}:${wins[p1]} ${p2}:${wins[p2]}`);
+
+    if (bestOf > 1) {
+      const newScore = `${wins[p1]}-${wins[p2]}`;
+      await ph.sendLobbyChat(page, `📊 Series: ${p1} ${wins[p1]} — ${wins[p2]} ${p2}`);
+    }
+  }
+
+  const winner = wins[p1] >= winsNeeded ? p1 : p2;
+  const loser  = winner === p1 ? p2 : p1;
+  return { winner, loser, method: 'series', wins };
+}
+
+module.exports = { hostMatch, hostSeries };
