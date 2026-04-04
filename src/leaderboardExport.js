@@ -74,6 +74,7 @@ function recordTournament({ id, name, format, date, champion, second, third, bra
   });
 
   saveData(data);
+  writeDataJson(data);
   return data;
 }
 
@@ -788,6 +789,37 @@ function exportToFile(outputPath) {
   return outputPath;
 }
 
+// ── Write data.json to leaderboard folder ────────────────
+// Called automatically after recordTournament() so the Node.js
+// server always serves the latest leaderboard data at /data.json.
+function writeDataJson(data) {
+  try {
+    const d = data || loadData();
+    const leaderboardDir = path.join(__dirname, '..', 'leaderboard');
+    fs.mkdirSync(leaderboardDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(leaderboardDir, 'data.json'),
+      JSON.stringify({ ...d, updatedAt: Date.now() }, null, 2),
+      'utf8'
+    );
+  } catch (e) { console.warn('[leaderboard] writeDataJson failed:', e.message); }
+}
+
+// ── Write live.json to leaderboard folder ─────────────────
+// Called after each bracket update so the public leaderboard page
+// can display the current live bracket without authentication.
+function writeLiveJson({ bracket, activeMatches, phase, players, tournamentName } = {}) {
+  try {
+    const leaderboardDir = path.join(__dirname, '..', 'leaderboard');
+    fs.mkdirSync(leaderboardDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(leaderboardDir, 'live.json'),
+      JSON.stringify({ bracket, activeMatches, phase, players, tournamentName, updatedAt: Date.now() }, null, 2),
+      'utf8'
+    );
+  } catch (e) { console.warn('[leaderboard] writeLiveJson failed:', e.message); }
+}
+
 // ── Publish to GitHub ────────────────────────────────────
 // Writes data.json into the repo and pushes it.
 // The index.html is permanent in the repo — only data.json changes.
@@ -857,4 +889,4 @@ function publishToGitHub({ repoDir, branch = 'main', filename = 'data.json', com
   }
 }
 
-module.exports = { recordTournament, exportToFile, generateHTML, loadData, publishToGitHub };
+module.exports = { recordTournament, exportToFile, generateHTML, loadData, publishToGitHub, writeDataJson, writeLiveJson };

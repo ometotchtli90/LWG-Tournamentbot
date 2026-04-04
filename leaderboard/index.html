@@ -910,8 +910,61 @@ function render(data) {
 }
 
 // ══════════════════════════════════════════════════════════
+// LIVE BRACKET
+// ══════════════════════════════════════════════════════════
+let _liveSection = null;
+
+function renderLiveBracket(live) {
+  if (!live || !live.bracket || live.phase === 'idle') {
+    if (_liveSection) { _liveSection.remove(); _liveSection = null; }
+    return;
+  }
+
+  const html = `
+    <div class="section" id="liveBracket" style="--d:0ms">
+      <div class="panel" style="margin-bottom:16px;border-color:var(--gold);box-shadow:3px 3px 0 rgba(0,0,0,.5),0 0 16px rgba(255,136,0,.15);">
+        <div class="panel-title" style="color:var(--green);">
+          <span class="blink" style="color:var(--red);">●</span>&nbsp;LIVE — ${esc(live.tournamentName || 'Tournament')}
+          <span style="font-size:8px;color:var(--blue-dim);margin-left:auto;">${live.phase?.toUpperCase() || ''}</span>
+        </div>
+        <div style="padding:14px">
+          ${renderBracket(live.bracket)}
+          ${Object.keys(live.activeMatches||{}).length ? `
+          <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+            <div style="font-family:var(--pixel);font-size:8px;color:var(--gold);letter-spacing:.08em;margin-bottom:8px;">ACTIVE MATCHES</div>
+            ${Object.entries(live.activeMatches).map(([game, m]) =>
+              `<div style="font-family:var(--pixel);font-size:9px;padding:4px 0;border-bottom:1px solid var(--border);color:var(--blue-text);">
+                <span style="color:var(--green);">${esc(m.p1||'?')}</span>
+                <span style="color:var(--blue-dim);"> vs </span>
+                <span style="color:var(--green);">${esc(m.p2||'?')}</span>
+                <span style="color:var(--blue-dim);font-size:8px;"> · ${esc(game)}</span>
+              </div>`).join('')}
+          </div>` : ''}
+        </div>
+      </div>
+    </div>`;
+
+  const app = document.getElementById('app');
+  if (!app) return;
+  if (!_liveSection) {
+    _liveSection = document.createElement('div');
+    app.insertBefore(_liveSection, app.firstChild);
+  }
+  _liveSection.innerHTML = html;
+}
+
+async function pollLive() {
+  try {
+    const r = await fetch('live.json?t=' + Date.now(), { cache: 'no-store' });
+    if (r.ok) renderLiveBracket(await r.json());
+  } catch (_) {}
+}
+
+// ══════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════
+let _lastUpdatedAt = null;
+
 (async () => {
   const data = await loadData();
   if (!data) {
@@ -922,7 +975,25 @@ function render(data) {
     </div>`;
     return;
   }
+  _lastUpdatedAt = data.updatedAt || null;
   render(data);
+
+  // Poll live.json every 5s for live bracket updates
+  setInterval(pollLive, 5000);
+  pollLive();
+
+  // Poll data.json every 30s — re-render if updatedAt changed
+  setInterval(async () => {
+    try {
+      const r = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.updatedAt && d.updatedAt !== _lastUpdatedAt) {
+        _lastUpdatedAt = d.updatedAt;
+        render(d);
+      }
+    } catch (_) {}
+  }, 30000);
 })();
 </script>
 </body>

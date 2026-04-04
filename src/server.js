@@ -56,11 +56,17 @@ function startServer() {
   const leaderboardDir = path.join(__dirname, '..', 'leaderboard');
   const dashboardHtml  = path.join(publicDir, 'dashboard.html');
 
-  // data.json — no-cache so scores are always fresh
+  // data.json and live.json — no-cache so scores/bracket are always fresh
+  const noCache = { 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Pragma': 'no-cache', 'Expires': '-1' };
   app.get('/data.json', (_req, res) => {
-    res.set({ 'Cache-Control': 'no-store, no-cache, must-revalidate',
-               'Pragma': 'no-cache', 'Expires': '-1' });
+    res.set(noCache);
     res.sendFile(path.join(leaderboardDir, 'data.json'));
+  });
+  app.get('/live.json', (_req, res) => {
+    const p = path.join(leaderboardDir, 'live.json');
+    if (!fs.existsSync(p)) return res.json({ phase: 'idle', bracket: null });
+    res.set(noCache);
+    res.sendFile(p);
   });
 
   // Admin dashboard — password protected

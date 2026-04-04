@@ -427,8 +427,8 @@
     overflow-x: auto;
   }
   #topBar > .tpanel {
-    flex-shrink: 0;
-    width: 220px;
+    flex: 1;
+    min-width: 180px;
     max-height: 260px;
     overflow-y: auto;
     background: var(--navy);
@@ -571,8 +571,6 @@
       </div>
       <button class="btn btn-full btn-sm" id="btnNewTourney" style="display:none;background:var(--green);color:#000;" onclick="doNewTournament()">▶ New Tournament</button>
       <button class="btn btn-full btn-sm" id="btnCancel" style="display:none;background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;" onclick="doReset()">✕ Cancel</button>
-      <div style="height:1px;background:var(--border);margin:2px 0;"></div>
-      <button class="btn btn-ghost btn-full btn-sm" onclick="doDownloadData()">📥 Download data.json</button>
     </div>
 
     <!-- Manual Controls -->

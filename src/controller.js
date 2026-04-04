@@ -659,6 +659,7 @@ async function checkWalkoverChampion() {
   state.phase = 'done';
   emit('phase',   { phase: 'done', champion: champ });
   emit('bracket', { bracket: state.bracket });
+  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: {}, phase: 'done', players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
 
   const elim   = [...(state.bracket.eliminated || [])];
   const second = elim[elim.length - 1] || null;
@@ -724,6 +725,7 @@ async function applyResult(match, winner, loser, method, gameName) {
 
   emit('match_result', { gameName, winner, loser, method, matchId: match.id });
   emit('bracket',      { bracket: state.bracket });
+  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: state.phase, players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
 
   // Accumulate match log for end-of-tournament export
   if (winner !== 'BYE') {
@@ -760,6 +762,7 @@ async function applyResult(match, winner, loser, method, gameName) {
     const second = elim[elim.length - 1] || null;
     const third  = elim[elim.length - 2] || null;
     lb.tournamentEnd({ id: state.tournamentId, champion: champ, second, third, bracket: state.bracket });
+    lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: {}, phase: 'done', players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
     lbExport.recordTournament({
       id:       state.tournamentId,
       name:     `Tournament ${new Date().toLocaleDateString()}`,
@@ -973,8 +976,10 @@ async function doReset() {
   state.bracket       = null;
   state.activeMatches = {};
   state.matchLog      = [];
-  state.workerPages.forEach(w => { w.busy = false; });  emit('phase', { phase: 'idle' });
+  state.workerPages.forEach(w => { w.busy = false; });
+  emit('phase', { phase: 'idle' });
   emit('reset', {});
+  lbExport.writeLiveJson({ bracket: null, activeMatches: {}, phase: 'idle', players: [] });
 }
 
 function isRunning() { return !!state.browser; }
