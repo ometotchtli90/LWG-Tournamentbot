@@ -571,6 +571,8 @@
       </div>
       <button class="btn btn-full btn-sm" id="btnNewTourney" style="display:none;background:var(--green);color:#000;" onclick="doNewTournament()">▶ New Tournament</button>
       <button class="btn btn-full btn-sm" id="btnCancel" style="display:none;background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;" onclick="doReset()">✕ Cancel</button>
+      <div style="height:1px;background:var(--border);margin:2px 0;"></div>
+      <button class="btn btn-ghost btn-full btn-sm" id="btnReconnect" style="display:none;" onclick="doReconnect()">↺ Reconnect Accounts</button>
     </div>
 
     <!-- Manual Controls -->
@@ -935,7 +937,28 @@ function doOpenSignup(mode) {
   cmd('openSignup', [format, mode]);
 }
 
-function doReset() { if (confirm('Cancel the current tournament and return to idle?')) cmd('reset'); }
+function doReset() { if (confirm('Cancel the current tournament? All active matches will be stopped.')) cmd('reset'); }
+
+async function doReconnect() {
+  if (!confirm('Reconnect all accounts? Browsers will restart and re-login. Active matches will be interrupted but the bracket is preserved.')) return;
+  const overlay = document.getElementById('bootOverlay');
+  const label   = overlay.querySelector('.boot-label');
+  const sub     = overlay.querySelector('.boot-sub');
+  label.textContent = 'Reconnecting…';
+  sub.textContent   = 'Closing browsers, re-launching and logging in all accounts. ~30 seconds.';
+  overlay.classList.add('show');
+  try {
+    const r = await cmd('reconnect');
+    overlay.classList.remove('show');
+    if (r.error) alert('Reconnect failed: ' + r.error);
+  } catch (e) {
+    overlay.classList.remove('show');
+    alert('Reconnect failed: ' + e.message);
+  }
+  // Restore overlay text for next boot
+  label.textContent = 'Launching browsers…';
+  sub.textContent   = 'Opening 1 visible window (controller) + headless workers. Dismissing LWG popups then logging in all accounts. ~30 seconds.';
+}
 
 function doNewTournament() {
   // Update local state immediately so UI responds at once
@@ -1105,8 +1128,9 @@ function renderButtons() {
   const _showCancel = !_isDone && S.phase !== 'idle';
   if (_btnCancel) _btnCancel.style.display = _showCancel ? 'block' : 'none';
 
-  // When tournament is done: show "Start New Tournament", hide "Cancel"
-
+  // Reconnect: visible whenever browsers are booted
+  const _btnReconnect = document.getElementById('btnReconnect');
+  if (_btnReconnect) _btnReconnect.style.display = booted ? 'block' : 'none';
 }
 
 function validateBootConfig() {

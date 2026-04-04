@@ -947,6 +947,7 @@ async function dashboardCommand(cmd, args = []) {
     case 'printBracket': await printBracketToChat();             break;
     case 'standings':    await printStandings();                 break;
     case 'reset':        await doReset();                        break;
+    case 'reconnect':    await doReconnect(args[0]);             break;
     case 'testGG': {
       const w = state.workerPages.find(p => p.username === args[0]);
       if (!w) return { error: `Worker ${args[0]} not found` };
@@ -967,7 +968,35 @@ async function dashboardCommand(cmd, args = []) {
 }
 
 async function doReset() {
-  // Clear any pending signup timers so they don't fire after reset
+  // 1. Cancel all active match workers immediately
+  const activeCount = Object.keys(state.cancelTokens).length;
+  for (const token of Object.values(state.cancelTokens)) {
+    token.cancelled = true;
+  }
+
+  // 2. Announce cancellation in lobby chat
+  try {
+    if (state.controllerPage && activeCount > 0) {
+      await ph.sendLobbyChat(state.controllerPage, `🚫 Tournament cancelled! All ongoing matches have been stopped.`);
+    } else if (state.controllerPage) {
+      await ph.sendLobbyChat(state.controllerPage, `🚫 Tournament cancelled.`);
+    }
+  } catch (_) {}
+
+  // 3. Tell all busy workers to leave their current game
+  await Promise.all(state.workerPages.filter(w => w.busy).map(async w => {
+    try {
+      // Try the in-game quit sequence first
+      await w.page.click('#ingameMenuButton').catch(() => {});
+      await w.page.waitForTimeout(600);
+      await w.page.click('#optionsQuitButton').catch(() => {});
+      await w.page.waitForTimeout(800);
+      // Fallback: any visible backButton
+      await w.page.click('#backButton').catch(() => {});
+    } catch (_) {}
+  }));
+
+  // 4. Clear signup timers
   if (state._signupTimers) {
     state._signupTimers.forEach(t => clearTimeout(t));
     state._signupTimers = [];
@@ -976,16 +1005,88 @@ async function doReset() {
     clearInterval(state._signupTickInterval);
     state._signupTickInterval = null;
   }
-  state._signupStart = null;
+
+  // 5. Reset tournament state (keep browsers alive so a new tournament can start)
+  state._signupStart  = null;
   state.phase         = 'idle';
   state.players       = [];
   state.bracket       = null;
   state.activeMatches = {};
+  state.cancelTokens  = {};
   state.matchLog      = [];
   state.workerPages.forEach(w => { w.busy = false; });
+
   emit('phase', { phase: 'idle' });
   emit('reset', {});
   lbExport.writeLiveJson({ bracket: null, activeMatches: {}, phase: 'idle', players: [] });
+}
+
+// ── Reconnect all browsers ─────────────────────────────────
+// Closes all browser instances and re-runs the login sequence
+// for controller + all workers. Tournament state (bracket, players,
+// matchLog) is preserved so the tournament can continue after reconnect.
+async function doReconnect(accounts) {
+  emit('phase', { phase: 'reconnecting' });
+
+  // Cancel active matches so workers stop mid-game
+  for (const token of Object.values(state.cancelTokens)) token.cancelled = true;
+  state.cancelTokens  = {};
+  state.activeMatches = {};
+  state.workerPages.forEach(w => { w.busy = false; });
+
+  // Stop chat watcher and shared poller before closing browsers
+  if (state.stopChatWatch) { try { state.stopChatWatch(); } catch (_) {} state.stopChatWatch = null; }
+  stopSharedPoller();
+
+  // Close existing browsers
+  if (state.browser)       { try { await state.browser.close();       } catch (_) {} state.browser       = null; }
+  if (state.workerBrowser) { try { await state.workerBrowser.close(); } catch (_) {} state.workerBrowser = null; }
+  state.controllerPage = null;
+  state.workerPages    = [];
+
+  // Re-boot with the same accounts
+  const workersHeadless    = process.env.HEADLESS            !== 'false';
+  const controllerHeadless = process.env.CONTROLLER_HEADLESS !== undefined
+    ? process.env.CONTROLLER_HEADLESS !== 'false'
+    : workersHeadless;
+
+  const { browser: cb, channel } = await launchBrowser(controllerHeadless);
+  state.browser = cb;
+  emit('browser_channel', { channel });
+
+  const ctrlCtx = await cb.newContext();
+  const cp      = await ctrlCtx.newPage();
+  await ph.navigateToLobby(cp);
+  await ph.login(cp, accounts.controller.username, accounts.controller.password);
+  state.controllerPage = cp;
+
+  const { browser: wb } = await launchBrowser(workersHeadless);
+  state.workerBrowser = wb;
+  for (const acc of accounts.workers) {
+    const ctx = await wb.newContext({ acceptDownloads: true });
+    const wp  = await ctx.newPage();
+    await ph.navigateToLobby(wp);
+    await ph.login(wp, acc.username, acc.password);
+    state.workerPages.push({ page: wp, username: acc.username, busy: false });
+  }
+
+  state.stopChatWatch = ph.watchLobbyChat(state.controllerPage, handleChatMessage);
+  startSharedPoller();
+
+  emit('boot', { workers: state.workerPages.map(w => w.username), channel });
+
+  // Restore phase: if tournament was running/done restore that, otherwise idle
+  const restoredPhase = (state.phase === 'reconnecting')
+    ? (state.bracket ? 'running' : 'idle')
+    : state.phase;
+  state.phase = restoredPhase;
+  emit('phase', { phase: restoredPhase });
+
+  if (restoredPhase === 'running') {
+    await ph.sendLobbyChat(state.controllerPage, `✅ Reconnected! Tournament is still running. Use Force Win or wait for matches to be re-dispatched.`);
+    // Re-dispatch any matches that were active before reconnect
+    setTimeout(dispatchReadyMatches, 2000);
+  }
 }
 
 function isRunning() { return !!state.browser; }
@@ -997,4 +1098,4 @@ async function shutdown() {
   if (state.workerBrowser) { try { await state.workerBrowser.close(); } catch (_) {} state.workerBrowser = null; }
 }
 
-module.exports = { boot, setBroadcast, getSnapshot, dashboardCommand, emit, isRunning, shutdown };
+module.exports = { boot, setBroadcast, getSnapshot, dashboardCommand, emit, isRunning, shutdown, doReconnect };

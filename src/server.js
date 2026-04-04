@@ -118,13 +118,17 @@ function startServer() {
   app.post('/api/cmd', async (req, res) => {
     const { cmd, args = [] } = req.body;
 
-    if (cmd === 'boot') {
+    if (cmd === 'boot' || cmd === 'reconnect') {
       try {
         if (!fs.existsSync(ACCOUNTS_PATH)) {
           return res.status(400).json({ error: 'No accounts configured yet. Go to ⚙ Settings and save your bot credentials first.' });
         }
         const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf8'));
-        await controller.boot(accounts);
+        if (cmd === 'boot') {
+          await controller.boot(accounts);
+        } else {
+          await controller.dashboardCommand('reconnect', [accounts]);
+        }
         res.json({ ok: true });
       } catch (e) { res.status(500).json({ error: e.message }); }
       return;
