@@ -70,6 +70,27 @@ function startServer() {
     res.sendFile(p);
   });
 
+  // Public schedule feed — only enabled schedules, no internal fields
+  app.get('/schedules.json', (_req, res) => {
+    res.set(noCache);
+    const schedules = scheduler.listSchedules()
+      .filter(s => s.enabled)
+      .map(s => ({
+        id:             s.id,
+        name:           s.name,
+        recurrence:     s.recurrence,
+        time:           s.time,
+        timezone:       s.timezone,
+        dayOfWeek:      s.dayOfWeek,
+        cronExpr:       s.recurrence === 'custom' ? s.cronExpr : undefined,
+        fireAt:         s.recurrence === 'once'   ? s.fireAt   : undefined,
+        signupOpenMins: s.signupOpenMins || 10,
+        mapPoolSize:    s.mapPoolSize    || 5,
+        nextRun:        s.nextRun,
+      }));
+    res.json(schedules);
+  });
+
   // Admin dashboard — password protected
   app.get('/Admin', basicAuth, (_req, res) => res.sendFile(dashboardHtml));
   app.get('/admin', basicAuth, (_req, res) => res.sendFile(dashboardHtml));
