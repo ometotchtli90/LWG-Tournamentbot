@@ -402,6 +402,13 @@ async function kickPlayer(page, removeBtnId) {
 }
 
 // ── Utilities ─────────────────────────────────────────────
+
+// Strip LWG clan/rank prefix so "[SMURF] DieTrying" → "DieTrying".
+// Covers bracket-style tags like [TAG], <TAG>, and plain prefixes.
+function stripClanTag(username) {
+  return (username || '').replace(/^(\[.*?\]|<.*?>)\s*/, '').trim();
+}
+
 function splitMessage(text, maxLen) {
   const chunks = [];
   let rem = text;
@@ -431,7 +438,7 @@ function waitForMapBans(page, p1, p2, mapPool, timeoutMs, sendMsg, watchFn) {
     const poolLow = mapPool.map(m => m.toLowerCase());
 
     const stop = watchFn(page, (username, message) => {
-      const uLow = username.toLowerCase();
+      const uLow = stripClanTag(username).toLowerCase();
       if (uLow !== p1l && uLow !== p2l) return;           // ignore others
       if (bans[uLow]) return;                              // already banned
       if (!message.toLowerCase().startsWith('!ban ')) return;
@@ -485,5 +492,5 @@ module.exports = {
   sendLobbyChat, sendGameChat, sendIngameChat, sendPrivateMessage,
   watchLobbyChat, watchLobbyGameChat, watchGameChat,
   getSlotPlayers, kickPlayer, getPlayerLobbyStatus, isInGame,
-  waitForMapBans,
+  waitForMapBans, stripClanTag,
 };

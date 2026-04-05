@@ -303,7 +303,7 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
     const start = Date.now();
 
     const stop = ph.watchLobbyGameChat(page, (username, message) => {
-      const uLower = username.toLowerCase();
+      const uLower = ph.stripClanTag(username).toLowerCase();
       const mLower = message.toLowerCase();
       // Player must send the message themselves (match by username)
       if (uLower === p1l && mLower.includes('!ready')) ready.add(p1l);
@@ -370,7 +370,7 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
       if (!line.trim() || resolved || ggTimer) return;
       const colonIdx = line.indexOf(':');
       if (colonIdx < 0) return;
-      const sender   = line.slice(0, colonIdx).trim().toLowerCase();
+      const sender   = ph.stripClanTag(line.slice(0, colonIdx).trim()).toLowerCase();
       const rest     = line.slice(colonIdx + 1).trim();
       const bracketIdx = rest.lastIndexOf('] ');
       const msgBody  = (bracketIdx >= 0 ? rest.slice(bracketIdx + 2) : rest).trim().toLowerCase();
