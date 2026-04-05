@@ -71,7 +71,7 @@ function makeCronRule(sched) {
   return null; // 'once' handled separately
 }
 
-// Cron rule for pre-boot: always 2 minutes before tournament start time
+// Cron rule for pre-boot: 5 minutes before signup opens (signupOpenMins + 5 before tournament start)
 function makeBootCronRule(sched) {
   if (sched.recurrence === 'custom' || !sched.time) return null;
 
@@ -79,7 +79,8 @@ function makeBootCronRule(sched) {
   let hh = parseInt(parts[0], 10);
   let mm = parseInt(parts[1] || '0', 10);
 
-  mm -= 2;
+  const offset = (parseInt(sched.signupOpenMins) || 0) + 5;
+  mm -= offset;
   while (mm < 0) { mm += 60; hh--; }
   hh = ((hh % 24) + 24) % 24;
 
@@ -100,7 +101,7 @@ async function preBootBots(schedName) {
     return;
   }
   const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf8'));
-  console.log(`[scheduler] Pre-booting browsers 2 min before "${schedName}"…`);
+  console.log(`[scheduler] Pre-booting browsers (5 min before signup) for "${schedName}"…`);
   try {
     await controller.boot(accounts);
     console.log(`[scheduler] Pre-boot complete for "${schedName}".`);
@@ -182,8 +183,8 @@ function startJob(sched) {
     });
     if (j) jobs[sched.id] = j;
 
-    // Pre-boot job: 2 minutes before tournament start
-    const bootAt = new Date(new Date(sched.fireAt).getTime() - 2 * 60000);
+    // Pre-boot job: 5 minutes before signup opens
+    const bootAt = new Date(new Date(sched.fireAt).getTime() - ((parseInt(sched.signupOpenMins) || 0) + 5) * 60000);
     if (bootAt > new Date()) {
       const bj = nodeSchedule.scheduleJob(bootAt, () => preBootBots(sched.name));
       if (bj) bootJobs[sched.id] = bj;
