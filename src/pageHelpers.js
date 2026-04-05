@@ -262,8 +262,12 @@ async function sendPrivateMessage(page, targetPlayer, text) {
 
 // ── Read new chat messages via MutationObserver (returns a stop fn) ──
 function watchLobbyChat(page, onMessage) {
-  // We poll the chat area every 500ms via page.evaluate and diff against last seen
-  let lastCount = 0;
+  // We poll the chat area every 500ms via page.evaluate and diff against last seen.
+  // On the very first tick we snapshot the current message count and skip all
+  // existing history — this prevents stale !ban / !ready messages from a previous
+  // match being replayed when a new ban phase or ready-check starts.
+  let lastCount   = 0;
+  let initialized = false;
   const iv = setInterval(async () => {
     try {
       const messages = await page.evaluate((since) => {
@@ -276,6 +280,13 @@ function watchLobbyChat(page, onMessage) {
           idx:      nodes.indexOf(node),
         }));
       }, lastCount);
+
+      if (!initialized) {
+        // Skip everything already in the DOM — only process messages from here on
+        initialized = true;
+        if (messages.length) lastCount = messages[messages.length - 1].idx + 1;
+        return;
+      }
 
       for (const m of messages) {
         if (m.username && m.message) onMessage(m.username, m.message);
