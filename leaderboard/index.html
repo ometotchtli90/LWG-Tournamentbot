@@ -683,7 +683,7 @@ footer {
 
 <!-- ── Top bar ───────────────────────────────────────────── -->
 <div class="topbar">
-  <div class="topbar-logo">🏆 <span>LWG</span> TOURNAMENT</div>
+  <div class="topbar-logo"><span>AUTOMATIC</span> LWG TOURNAMENTS</div>
   <nav class="topbar-nav">
     <a href="#schedule"  class="nav-btn">Schedule</a>
     <a href="#standings" class="nav-btn">Standings</a>
@@ -695,7 +695,7 @@ footer {
 
 <!-- ── Hero ─────────────────────────────────────────────── -->
 <div class="hero">
-  <div class="hero-title">🏆 LEADERBOARD <span>/ LittleWarGame</span></div>
+  <div class="hero-title">LEADERBOARD</div>
   <div class="hero-stats">
     <div class="hstat"><span class="hstat-val" id="hs-players">—</span><span class="hstat-label">Players</span></div>
     <div class="hstat"><span class="hstat-val" id="hs-tourneys">—</span><span class="hstat-label">Tourneys</span></div>
@@ -1053,7 +1053,8 @@ function renderSchedules(schedules) {
           <div class="sched-meta-row">
             <span class="sched-tag">Double Elim · BO3</span>
             <span class="sched-tag">${s.mapPoolSize || 5} maps drawn</span>
-            <span class="sched-tag">Signup opens ${s.signupOpenMins || 10} min early</span>
+            <span class="sched-tag">${s.minPlayers || 4}–${s.maxPlayers || 16} players</span>
+            <span class="sched-tag">Signup ${s.signupOpenMins || 10} min early</span>
           </div>
         </div>
         <div class="sched-countdown">

@@ -86,6 +86,9 @@ function startServer() {
         fireAt:         s.recurrence === 'once'   ? s.fireAt   : undefined,
         signupOpenMins: s.signupOpenMins || 10,
         mapPoolSize:    s.mapPoolSize    || 5,
+        minPlayers:     s.minPlayers     || 4,
+        maxPlayers:     s.maxPlayers     || 16,
+        joinWaitMins:   s.joinWaitMins   || 5,
         nextRun:        s.nextRun,
       }));
     res.json(schedules);

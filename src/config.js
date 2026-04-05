@@ -10,6 +10,7 @@ module.exports = {
   resultKeyword:       '!win',
   leaveKeyword:        '!leave',
   joinWaitMs:          5 * 60_000,   // 5 minutes
+  banTimeoutMs:        3 * 60_000,   // 3 minutes — map ban phase timer
   intruderKickMs:      10_000,
   readyWaitMs:         5 * 60_000,   // 5 minutes
   ggWatchMs:           2 * 60_000,

@@ -91,10 +91,12 @@ async function triggerTournament(sched) {
   cfg.formatSettings.double_elimination.mapPool = picked;
   cfg.bracketFormat = 'double_elimination';
 
-  // Apply per-schedule signup duration (signupOpenMins overrides global setting)
-  if (sched.signupOpenMins) {
-    cfg.signupDurationMs = parseInt(sched.signupOpenMins) * 60000;
-  }
+  // ── Apply per-schedule config overrides ───────────────────
+  if (sched.signupOpenMins)  cfg.signupDurationMs = parseInt(sched.signupOpenMins)  * 60000;
+  if (sched.minPlayers)      cfg.minPlayers       = parseInt(sched.minPlayers);
+  if (sched.maxPlayers)      cfg.maxPlayers       = parseInt(sched.maxPlayers);
+  if (sched.joinWaitMins)    cfg.joinWaitMs       = parseInt(sched.joinWaitMins)    * 60000;
+  if (sched.banTimeoutMins)  cfg.banTimeoutMs     = parseInt(sched.banTimeoutMins)  * 60000;
 
   try {
     // Auto-boot browsers if they are not already running

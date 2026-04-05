@@ -12,11 +12,18 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   log(`Hosting: ${p1} vs ${p2}`);
 
-  // ── Announce in main lobby chat before hosting ────────────
+  // ── Announce in lobby chat + PM both players ─────────────
   const waitMins = Math.round(cfg.joinWaitMs / 60000);
   await ph.sendLobbyChat(page,
-    `I will host for ${p1} vs ${p2} — waiting ${waitMins} minutes for you to join!`
+    `🎮 Now hosting: ${p1} vs ${p2} — please join within ${waitMins} minute${waitMins !== 1 ? 's' : ''}!`
   );
+  // PM each player directly so they definitely see the notification
+  await ph.sendPrivateMessage(page, p1,
+    `🎮 Your match is ready! Join the game I'm hosting now. You have ${waitMins} minute${waitMins !== 1 ? 's' : ''}.`
+  ).catch(() => {});
+  await ph.sendPrivateMessage(page, p2,
+    `🎮 Your match is ready! Join the game I'm hosting now. You have ${waitMins} minute${waitMins !== 1 ? 's' : ''}.`
+  ).catch(() => {});
 
   // ── 1. Click Create/Play button ─────────────────────────
   log('Clicking Create Game...');
@@ -121,16 +128,11 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   // ── Send GLHF + gg reminder via in-game chat ─────────────
   try {
-    await page.waitForTimeout(2000); // let game fully load first
-    await page.waitForSelector('#ingameChatInput', { timeout: 8000 });
-    await page.$eval('#ingameChatInput', (el, msg) => {
-      el.focus();
-      el.value = msg;
-      el.dispatchEvent(new KeyboardEvent('keydown', {
-        bubbles: true, cancelable: true, key: 'Enter', keyCode: 13,
-      }));
-    }, 'GLHF to you both! Please remember to write "gg" before you leave.');
-    log('GLHF message sent in-game.');
+    await page.waitForTimeout(2500); // let game fully load first
+    await ph.sendIngameChat(page,
+      `GLHF ${p1} vs ${p2}! When the game is over, the LOSER types "gg" before leaving — that records the result.`
+    );
+    log('GLHF + gg reminder sent in-game.');
   } catch (_) {
     log('Could not send GLHF message in-game — continuing.');
   }
@@ -390,16 +392,37 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
       // First tournament player to appear in player-left = the one who left first = loser.
       // This fires before the status poller can even detect the change, and works
       // for disconnects AND rage-quits — no gg needed.
-      if (type !== 'player-left' || resolved || ggTimer) return;
+      if (type !== 'player-left' || resolved) return;
       const parts    = payload.split('<<$');
       const leftName = (parts[1] || '').trim().toLowerCase();
       if (!leftName || leftName === 'undefined') return;
       if (leftName !== p1l && leftName !== p2l) return; // not a tournament player
+
       console.log(`  [protocol] player-left: ${leftName} — disconnect detected`);
       const loser = leftName === p1l ? p1 : p2;
+
+      // If a gg timer is pending, check whether the leaver is the gg-sayer.
+      // Scenario: the WINNER typed gg (sportsmanship) → wrong ggLoser; then
+      // the actual LOSER leaves silently. Cancel the bad gg attribution and
+      // fall through to disconnect resolution.
+      if (ggTimer) {
+        const ggLoserLow = ggLoser ? ggLoser.toLowerCase() : null;
+        if (ggLoserLow && ggLoserLow !== leftName) {
+          // The gg-sayer is NOT the one who left — winner said gg by mistake.
+          // Cancel the wrong result and resolve correctly via disconnect.
+          console.log(`  [protocol] gg-sayer (${ggLoser}) stayed in; leaver (${leftName}) is the real loser — cancelling gg timer`);
+          clearTimeout(ggTimer);
+          ggTimer = null;
+          // fall through to doResolve below
+        } else {
+          // The gg-sayer is the leaver — gg intention is correct, let it finish.
+          return;
+        }
+      }
+
       if (onResultKnown) onResultKnown();
       if (statusIv) clearInterval(statusIv);
-      // 800ms delay so gg (if typed simultaneously) can still win
+      // 800ms delay so a simultaneous gg (if any) can still win
       setTimeout(() => doResolve(loser, 'disconnect'), 800);
     });
 
@@ -478,7 +501,7 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
     await ph.sendPrivateMessage(page, p2, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`).catch(() => {});
 
     const banResult = await ph.waitForMapBans(
-      page, p1, p2, mapPool, 3 * 60_000,
+      page, p1, p2, mapPool, cfg.banTimeoutMs || 3 * 60_000,
       (msg) => ph.sendLobbyChat(page, msg),
       ph.watchLobbyChat
     );

@@ -175,6 +175,29 @@ async function sendGameChat(page, text) {
   }
 }
 
+// ── Send in-game chat (during active match) ───────────────
+async function sendIngameChat(page, text) {
+  const chunks = splitMessage(text, 200);
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) await page.waitForTimeout(400);
+    const chunk = chunks[i];
+    const sent = await page.evaluate((val) => {
+      const input = document.getElementById('ingameChatInput')
+                 || document.querySelector('input[id*="ingame"]')
+                 || document.querySelector('input[id*="Ingame"]');
+      if (!input) return false;
+      input.focus();
+      input.value = val;
+      input.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true, cancelable: true, key: 'Enter', keyCode: 13,
+      }));
+      return true;
+    }, chunk);
+    if (!sent) console.warn('  sendIngameChat: ingameChatInput not found');
+    await page.waitForTimeout(200);
+  }
+}
+
 // ── Send private message ──────────────────────────────────
 async function sendPrivateMessage(page, targetPlayer, text) {
   // 1. Find player in online list
@@ -448,7 +471,7 @@ function waitForMapBans(page, p1, p2, mapPool, timeoutMs, sendMsg, watchFn) {
 
 module.exports = {
   navigateToLobby, login, detectUsername,
-  sendLobbyChat, sendGameChat, sendPrivateMessage,
+  sendLobbyChat, sendGameChat, sendIngameChat, sendPrivateMessage,
   watchLobbyChat, watchLobbyGameChat, watchGameChat,
   getSlotPlayers, kickPlayer, getPlayerLobbyStatus, isInGame,
   waitForMapBans,
