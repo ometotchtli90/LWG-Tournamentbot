@@ -910,8 +910,9 @@
 
       <!-- One-time datetime (once) -->
       <div id="schFireAtRow" style="display:none;grid-column:1/-1;">
-        <div class="field-row-label">Date &amp; Time</div>
+        <div class="field-row-label">Date &amp; Time (your browser's local time)</div>
         <input id="schFireAt" type="datetime-local" class="pix">
+        <div style="font-size:8px;color:var(--muted);margin-top:4px;">Stored as UTC — the timezone selector above is ignored for one-time runs.</div>
       </div>
 
       <!-- Custom cron (custom) -->

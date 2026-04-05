@@ -125,7 +125,8 @@ function startJob(sched) {
       console.log(`[scheduler] Skipping past one-shot "${sched.name}" (${sched.fireAt})`);
       return;
     }
-    const j = nodeSchedule.scheduleJob({ start: fireAt, end: new Date(fireAt.getTime() + 5000), tz }, () => {
+    // node-schedule fires once when passed a Date directly
+    const j = nodeSchedule.scheduleJob(fireAt, () => {
       triggerTournament(sched);
     });
     if (j) jobs[sched.id] = j;
