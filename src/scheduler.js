@@ -56,8 +56,14 @@ function makeCronRule(sched) {
   if (!sched.time) return null;
 
   const parts = sched.time.split(':');
-  const hh = parseInt(parts[0], 10);
-  const mm = parseInt(parts[1] || '0', 10);
+  let hh = parseInt(parts[0], 10);
+  let mm = parseInt(parts[1] || '0', 10);
+
+  // Fire signupOpenMins early so signup is open for exactly that duration
+  const offset = parseInt(sched.signupOpenMins) || 0;
+  mm -= offset;
+  while (mm < 0) { mm += 60; hh--; }
+  hh = ((hh % 24) + 24) % 24;
 
   if (sched.recurrence === 'daily')  return `${mm} ${hh} * * *`;
   if (sched.recurrence === 'weekly') return `${mm} ${hh} * * ${sched.dayOfWeek ?? 0}`;
@@ -84,6 +90,11 @@ async function triggerTournament(sched) {
   if (!cfg.formatSettings.double_elimination)             cfg.formatSettings.double_elimination = {};
   cfg.formatSettings.double_elimination.mapPool = picked;
   cfg.bracketFormat = 'double_elimination';
+
+  // Apply per-schedule signup duration (signupOpenMins overrides global setting)
+  if (sched.signupOpenMins) {
+    cfg.signupDurationMs = parseInt(sched.signupOpenMins) * 60000;
+  }
 
   try {
     // Auto-boot browsers if they are not already running
@@ -120,7 +131,8 @@ function startJob(sched) {
 
   if (sched.recurrence === 'once') {
     if (!sched.fireAt) return;
-    const fireAt = new Date(sched.fireAt);
+    const offset  = parseInt(sched.signupOpenMins) || 0;
+    const fireAt  = new Date(new Date(sched.fireAt).getTime() - offset * 60000);
     if (fireAt <= new Date()) {
       console.log(`[scheduler] Skipping past one-shot "${sched.name}" (${sched.fireAt})`);
       return;

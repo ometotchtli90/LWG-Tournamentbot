@@ -969,6 +969,13 @@
         <div style="font-size:8px;color:var(--muted);margin-top:4px;">Players will ban 2 of these each series</div>
       </div>
 
+      <!-- Signup open time -->
+      <div>
+        <div class="field-row-label">Open Signup (minutes before start)</div>
+        <input id="schSignupOpenMins" type="number" class="pix" value="10" min="1" max="120">
+        <div style="font-size:8px;color:var(--muted);margin-top:4px;">Signup opens this many minutes early; tournament starts at scheduled time</div>
+      </div>
+
       <!-- Enabled toggle -->
       <div style="display:flex;align-items:flex-end;padding-bottom:4px;">
         <label class="toggle-wrap" onclick="toggleNewSchedEnabled()">
@@ -1744,7 +1751,7 @@ async function reloadScheduleList() {
         s.recurrence === 'custom' ? `Cron: ${s.cronExpr}` : s.recurrence;
       const tzLabel = s.timezone || 'UTC';
       const mapsLine = Array.isArray(s.masterMapPool)
-        ? `${s.masterMapPool.length} maps in pool · picks ${s.mapPoolSize || 5}` : '';
+        ? `${s.masterMapPool.length} maps in pool · picks ${s.mapPoolSize || 5} · signup ${s.signupOpenMins || 10}min early` : '';
       const nextStr  = s.nextRun ? new Date(s.nextRun).toLocaleString() : '—';
       return `
       <div class="sched-row${s.enabled ? '' : ' disabled'}" id="srow-${s.id}">
@@ -1789,8 +1796,11 @@ async function addSchedule() {
     .split('\n').map(l => l.trim()).filter(Boolean);
   const poolSize = parseInt(document.getElementById('schPoolSize').value) || 5;
 
+  const signupOpenMins = parseInt(document.getElementById('schSignupOpenMins').value) || 10;
+
   const sched = { name, recurrence: rec, timezone: tz,
     masterMapPool: masterMaps, mapPoolSize: poolSize,
+    signupOpenMins,
     enabled: _schedNewEnabled };
 
   if (rec === 'weekly' || rec === 'daily') {
