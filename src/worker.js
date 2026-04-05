@@ -474,9 +474,9 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
 }
 
 
-// ── Host a Best-of-N series with per-game map bans ──────────
-// mapPool: string[] (≥1 map). When pool has >1 maps, players ban
-//   one map each before EVERY game — fresh bans each round.
+// ── Host a Best-of-N series with optional map ban phase ─────
+// mapPool: string[] (≥1 map). If mapPool.length > 1 and both players
+//   need to ban, we ask them in lobby chat before game 1.
 // bestOf: 1 or 3 (first to ceil(bestOf/2) wins)
 //
 // Returns { winner, loser, method, wins: { p1: n, p2: n } }
@@ -485,57 +485,52 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
   const winsNeeded = Math.ceil(bestOf / 2);
   const wins       = { [p1]: 0, [p2]: 0 };
   let   gameNum    = 0;
+  // remainingMaps: the ordered list of maps to play — one per game in sequence.
+  // After bans this will be the surviving maps (e.g. 3 for BO3 with 5-map pool).
+  let remainingMaps = [...mapPool];
 
-  // ── Series loop — fresh ban phase before every game ──────
+  // ── Map ban phase (only for BO3+ with pool of >1 maps) ────
+  if (bestOf > 1 && mapPool.length > 1) {
+    log(`Map ban phase: pool=[${mapPool.join(', ')}]`);
+
+    const poolStr = mapPool.map((m, i) => `${i + 1}. ${m}`).join(' | ');
+    await ph.sendLobbyChat(page,
+      `📍 MAP BAN — ${p1} vs ${p2} | Pool: ${poolStr} | Each player types !ban <mapname>. You have 3 minutes.`
+    );
+    await ph.sendPrivateMessage(page, p1, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`).catch(() => {});
+    await ph.sendPrivateMessage(page, p2, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`).catch(() => {});
+
+    const banResult = await ph.waitForMapBans(
+      page, p1, p2, mapPool, cfg.banTimeoutMs || 3 * 60_000,
+      (msg) => ph.sendLobbyChat(page, msg),
+      ph.watchLobbyChat
+    );
+
+    // Build remaining map list by removing both banned maps (preserve order)
+    const bannedLow = Object.values(banResult.bans).filter(Boolean).map(b => b.toLowerCase());
+    remainingMaps = mapPool.filter(m => !bannedLow.includes(m.toLowerCase()));
+
+    const p1ban = banResult.bans[p1] || '(auto)';
+    const p2ban = banResult.bans[p2] || '(auto)';
+    const mapsStr = remainingMaps.join(' → ');
+    if (banResult.timedOut) {
+      await ph.sendLobbyChat(page, `⏰ Ban timer expired. Banned: ${p1ban} & ${p2ban} | Maps to play: ${mapsStr}`);
+    } else {
+      await ph.sendLobbyChat(page, `✅ Bans done — ${p1} banned ${p1ban}, ${p2} banned ${p2ban} | Maps: ${mapsStr}`);
+    }
+    log(`Maps to play in order: ${mapsStr}`);
+  }
+
+  // ── Series loop — each game plays the next map in sequence ──
   while (wins[p1] < winsNeeded && wins[p2] < winsNeeded) {
     if (cancelToken?.cancelled) return { winner: p1, loser: p2, method: 'cancelled', wins };
 
     gameNum++;
+    // Use next map in remaining list; wrap around if more games than maps (edge case)
+    const currentMap  = remainingMaps[(gameNum - 1) % remainingMaps.length];
     const seriesScore = `(${wins[p1]}-${wins[p2]})`;
     const gameLabel   = bestOf > 1 ? `Game ${gameNum} of BO${bestOf} ${seriesScore}` : '';
 
-    // ── Per-game map ban phase ─────────────────────────────
-    let currentMap;
-    if (mapPool.length > 1) {
-      log(`Map ban phase for ${gameLabel || 'match'}: pool=[${mapPool.join(', ')}]`);
-
-      const poolStr = mapPool.map((m, i) => `${i + 1}. ${m}`).join(' | ');
-      const banHeader = gameLabel ? `📍 MAP BAN — ${gameLabel}` : `📍 MAP BAN`;
-      await ph.sendLobbyChat(page,
-        `${banHeader} | ${p1} vs ${p2} | Pool: ${poolStr} | Each player types !ban <mapname>. You have ${Math.round((cfg.banTimeoutMs || 3 * 60_000) / 60000)} minutes.`
-      );
-      await ph.sendPrivateMessage(page, p1,
-        `🗺️ MAP BAN${gameLabel ? ` (${gameLabel})` : ''}: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`
-      ).catch(() => {});
-      await ph.sendPrivateMessage(page, p2,
-        `🗺️ MAP BAN${gameLabel ? ` (${gameLabel})` : ''}: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`
-      ).catch(() => {});
-
-      const banResult = await ph.waitForMapBans(
-        page, p1, p2, mapPool, cfg.banTimeoutMs || 3 * 60_000,
-        (msg) => ph.sendLobbyChat(page, msg),
-        ph.watchLobbyChat
-      );
-
-      // Remove both banned maps; play the first surviving map
-      const bannedLow = Object.values(banResult.bans).filter(Boolean).map(b => b.toLowerCase());
-      const remaining = mapPool.filter(m => !bannedLow.includes(m.toLowerCase()));
-      currentMap = remaining[0] || mapPool[0]; // fallback to first if all banned (shouldn't happen)
-
-      const p1ban = banResult.bans[p1] || '(auto)';
-      const p2ban = banResult.bans[p2] || '(auto)';
-      if (banResult.timedOut) {
-        await ph.sendLobbyChat(page, `⏰ Ban timer expired. ${p1} banned ${p1ban}, ${p2} banned ${p2ban} | Playing: ${currentMap}`);
-      } else {
-        await ph.sendLobbyChat(page, `✅ Bans done — ${p1} banned ${p1ban}, ${p2} banned ${p2ban} | Playing: ${currentMap}`);
-      }
-      log(`${gameLabel || 'Match'} map after bans: ${currentMap}`);
-    } else {
-      // Only one map — no ban phase needed
-      currentMap = mapPool[0];
-    }
-
-    // ── Announce & play the game ───────────────────────────
     log(`${gameLabel} — map: ${currentMap}`);
     await ph.sendLobbyChat(page,
       bestOf > 1
@@ -566,6 +561,7 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
     log(`Game ${gameNum}: ${result.winner} wins — series ${p1}:${wins[p1]} ${p2}:${wins[p2]}`);
 
     if (bestOf > 1) {
+      const newScore = `${wins[p1]}-${wins[p2]}`;
       await ph.sendLobbyChat(page, `📊 Series: ${p1} ${wins[p1]} — ${wins[p2]} ${p2}`);
     }
   }
