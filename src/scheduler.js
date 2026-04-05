@@ -32,7 +32,8 @@ const ACCOUNTS_PATH  = path.join(__dirname, '..', 'data', 'accounts.json');
 let controller = null;
 
 // Live node-schedule Job instances keyed by schedule id
-const jobs = {};
+const jobs     = {};  // tournament trigger jobs
+const bootJobs = {};  // pre-boot jobs (fire 2 min before tournament start)
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 
@@ -68,6 +69,44 @@ function makeCronRule(sched) {
   if (sched.recurrence === 'daily')  return `${mm} ${hh} * * *`;
   if (sched.recurrence === 'weekly') return `${mm} ${hh} * * ${sched.dayOfWeek ?? 0}`;
   return null; // 'once' handled separately
+}
+
+// Cron rule for pre-boot: always 2 minutes before tournament start time
+function makeBootCronRule(sched) {
+  if (sched.recurrence === 'custom' || !sched.time) return null;
+
+  const parts = sched.time.split(':');
+  let hh = parseInt(parts[0], 10);
+  let mm = parseInt(parts[1] || '0', 10);
+
+  mm -= 2;
+  while (mm < 0) { mm += 60; hh--; }
+  hh = ((hh % 24) + 24) % 24;
+
+  if (sched.recurrence === 'daily')  return `${mm} ${hh} * * *`;
+  if (sched.recurrence === 'weekly') return `${mm} ${hh} * * ${sched.dayOfWeek ?? 0}`;
+  return null;
+}
+
+// ── Pre-boot helper ───────────────────────────────────────────────────────────
+
+async function preBootBots(schedName) {
+  if (controller.isRunning()) {
+    console.log(`[scheduler] Pre-boot for "${schedName}": bots already running.`);
+    return;
+  }
+  if (!fs.existsSync(ACCOUNTS_PATH)) {
+    console.error(`[scheduler] Pre-boot for "${schedName}": no accounts.json found. Configure accounts in Settings first.`);
+    return;
+  }
+  const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf8'));
+  console.log(`[scheduler] Pre-booting browsers 2 min before "${schedName}"…`);
+  try {
+    await controller.boot(accounts);
+    console.log(`[scheduler] Pre-boot complete for "${schedName}".`);
+  } catch (e) {
+    console.error(`[scheduler] Pre-boot error for "${schedName}":`, e.message);
+  }
 }
 
 // ── Tournament trigger ────────────────────────────────────────────────────────
@@ -121,11 +160,9 @@ async function triggerTournament(sched) {
 // ── Job management ────────────────────────────────────────────────────────────
 
 function startJob(sched) {
-  // Cancel any existing job for this id
-  if (jobs[sched.id]) {
-    jobs[sched.id].cancel();
-    delete jobs[sched.id];
-  }
+  // Cancel any existing jobs for this id
+  if (jobs[sched.id])     { jobs[sched.id].cancel();     delete jobs[sched.id]; }
+  if (bootJobs[sched.id]) { bootJobs[sched.id].cancel(); delete bootJobs[sched.id]; }
 
   if (!sched.enabled) return;
 
@@ -144,6 +181,13 @@ function startJob(sched) {
       triggerTournament(sched);
     });
     if (j) jobs[sched.id] = j;
+
+    // Pre-boot job: 2 minutes before tournament start
+    const bootAt = new Date(new Date(sched.fireAt).getTime() - 2 * 60000);
+    if (bootAt > new Date()) {
+      const bj = nodeSchedule.scheduleJob(bootAt, () => preBootBots(sched.name));
+      if (bj) bootJobs[sched.id] = bj;
+    }
   } else {
     const rule = makeCronRule(sched);
     if (!rule) return;
@@ -151,6 +195,13 @@ function startJob(sched) {
       triggerTournament(sched);
     });
     if (j) jobs[sched.id] = j;
+
+    // Pre-boot job: cron 2 minutes before tournament start
+    const bootRule = makeBootCronRule(sched);
+    if (bootRule) {
+      const bj = nodeSchedule.scheduleJob({ rule: bootRule, tz }, () => preBootBots(sched.name));
+      if (bj) bootJobs[sched.id] = bj;
+    }
   }
 
   const next = getNextRun(sched);
@@ -158,10 +209,8 @@ function startJob(sched) {
 }
 
 function stopJob(id) {
-  if (jobs[id]) {
-    jobs[id].cancel();
-    delete jobs[id];
-  }
+  if (jobs[id])     { jobs[id].cancel();     delete jobs[id]; }
+  if (bootJobs[id]) { bootJobs[id].cancel(); delete bootJobs[id]; }
 }
 
 function getNextRun(sched) {
