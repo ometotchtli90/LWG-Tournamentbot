@@ -823,11 +823,22 @@ function render(data) {
   document.getElementById('hs-leader').textContent   = players[0]?.name || '—';
 
   if (!players.length) {
-    document.getElementById('app').innerHTML = `<div class="empty">
+    document.getElementById('app').innerHTML = `
+    <!-- SCHEDULE (populated separately by renderSchedules) -->
+    <div class="section" id="schedule">
+      <div class="panel">
+        <div class="panel-title">📅 Upcoming Tournaments</div>
+        <div style="padding:14px" id="scheduleCards">
+          <div class="empty-sub">Loading schedule…</div>
+        </div>
+      </div>
+    </div>
+    <div class="empty">
       <span class="empty-icon">🏆</span>
       <div class="empty-text">NO DATA YET</div>
-      <div class="empty-sub">Complete a tournament and commit data.json to see results here.</div>
+      <div class="empty-sub">Complete a tournament to see results here.</div>
     </div>`;
+    renderSchedules(_schedules);
     return;
   }
 

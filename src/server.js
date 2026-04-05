@@ -178,10 +178,13 @@ function startServer() {
         const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf8'));
         if (cmd === 'boot') {
           await controller.boot(accounts);
+          res.json({ ok: true });
         } else {
-          await controller.dashboardCommand('reconnect', [accounts]);
+          // Reconnect takes 30-60 s — fire-and-forget so the proxy doesn't time out
+          controller.dashboardCommand('reconnect', [accounts])
+            .catch(e => console.error('[reconnect] Error:', e.message));
+          res.json({ ok: true });
         }
-        res.json({ ok: true });
       } catch (e) { res.status(500).json({ error: e.message }); }
       return;
     }
