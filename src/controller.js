@@ -275,6 +275,10 @@ async function openSignup(format, signupMode) {
 }
 
 async function registerPlayer(username) {
+  if (/^guest_/i.test(username)) {
+    await chat(`❌ ${username}: guests cannot join tournaments. Please log in with a registered account.`);
+    return;
+  }
   if (state.players.includes(username)) return;
   const effectiveMax = state._signupEffectiveMax || cfg.maxPlayers;
   if (state.players.length >= effectiveMax) {
