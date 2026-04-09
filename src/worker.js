@@ -126,16 +126,14 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   status('game_started');
 
-  // ── Send GLHF + gg reminder via in-game chat ─────────────
-  try {
-    await page.waitForTimeout(2500); // let game fully load first
-    await ph.sendIngameChat(page,
-      `GLHF ${p1} vs ${p2}! When the game is over, the LOSER types "gg" before leaving — that records the result.`
-    );
-    log('GLHF + gg reminder sent in-game.');
-  } catch (_) {
-    log('Could not send GLHF message in-game — continuing.');
-  }
+  // ── Send GLHF + gg reminder via PM to both players ──────
+  // sendIngameChat is unreliable from spectator mode — PMs always reach
+  // players regardless of whether they are in-game or in the lobby.
+  await page.waitForTimeout(1500);
+  const ggMsg = `🎮 GLHF! When the game is over, the LOSER types "gg" in chat before leaving — that's how the result gets recorded. Good luck!`;
+  await ph.sendPrivateMessage(page, p1, ggMsg).catch(() => {});
+  await ph.sendPrivateMessage(page, p2, ggMsg).catch(() => {});
+  log('GLHF + gg reminder PMed to both players.');
 
   // ── 9. Watch for result ──────────────────────────────────
   log('Watching for result...');
