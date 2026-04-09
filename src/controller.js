@@ -279,7 +279,7 @@ async function registerPlayer(username) {
     await chat(`❌ ${username}: guests cannot join tournaments. Please log in with a registered account.`);
     return;
   }
-  if (state.players.includes(username)) return;
+  if (state.players.some(p => p.toLowerCase() === username.toLowerCase())) return;
   const effectiveMax = state._signupEffectiveMax || cfg.maxPlayers;
   if (state.players.length >= effectiveMax) {
     await chat(`⚠️ ${username}: tournament full (${effectiveMax} players max).`); return;
@@ -874,17 +874,28 @@ async function overrideResult(matchId, newWinner) {
     nextMatch = state.bracket.wb[nextRi][Math.floor(match.matchIdx / 2)];
   }
 
-  const nextAlreadyPlayed = nextMatch && nextMatch.winner;
-  if (nextAlreadyPlayed) {
-    await chat(`⚠️ Cannot override ${match.p1} vs ${match.p2}: ${oldWinner} has already played their next match.`);
-    return { error: 'Next match already played — cannot override' };
-  }
-
   // ── Undo old result ──────────────────────────────────────
-  // Remove old winner from the next match slot
+  // Remove old winner from the next match slot.
+  // If that match was already played, reset it so it can be replayed.
   if (nextMatch) {
     if (nextMatch.p1 === oldWinner) nextMatch.p1 = null;
     if (nextMatch.p2 === oldWinner) nextMatch.p2 = null;
+    if (nextMatch.winner) {
+      // Cancel any active worker for that match too
+      if (state.cancelTokens[nextMatch.id]) {
+        state.cancelTokens[nextMatch.id].cancelled = true;
+        delete state.cancelTokens[nextMatch.id];
+      }
+      const nextActiveEntry = state.activeMatches[nextMatch.id];
+      if (nextActiveEntry) {
+        const w = state.workerPages.find(wp => wp.username === nextActiveEntry.workerName);
+        if (w) w.busy = false;
+        delete state.activeMatches[nextMatch.id];
+      }
+      nextMatch.winner = null;
+      nextMatch.loser  = null;
+      await chat(`⚠️ Downstream match (${nextMatch.p1 || '?'} vs ${nextMatch.p2 || '?'}) was reset — it will need to be replayed.`);
+    }
   }
 
   // For double elim: if old loser was dropped to LB, remove them from LB too

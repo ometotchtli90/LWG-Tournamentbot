@@ -491,6 +491,9 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
 
   // ── Map ban phase (only for BO3+ with pool of >1 maps) ────
   if (bestOf > 1 && mapPool.length > 1) {
+    // Bail out immediately if already cancelled before ban phase starts
+    if (cancelToken?.cancelled) return { winner: p1, loser: p2, method: 'cancelled', wins };
+
     log(`Map ban phase: pool=[${mapPool.join(', ')}]`);
 
     const poolStr = mapPool.map((m, i) => `${i + 1}. ${m}`).join(' | ');
@@ -505,6 +508,9 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
       (msg) => ph.sendLobbyChat(page, msg),
       ph.watchLobbyChat
     );
+
+    // Bail out if a Force Win arrived while the ban phase was running
+    if (cancelToken?.cancelled) return { winner: p1, loser: p2, method: 'cancelled', wins };
 
     // Build remaining map list by removing both banned maps (preserve order)
     const bannedLow = Object.values(banResult.bans).filter(Boolean).map(b => b.toLowerCase());
