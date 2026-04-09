@@ -29,8 +29,17 @@ async function dismissPopups(page) {
         div.style.visibility = 'hidden';
         div.style.opacity = '0';
         div.style.pointerEvents = 'none';
+        div.style.zIndex = '-9999';
       }
     });
+
+    // Wait until the div is no longer intercepting pointer events
+    await page.waitForFunction(() => {
+      const div = document.getElementById('changelogDiv');
+      if (!div) return true;
+      const style = window.getComputedStyle(div);
+      return style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none';
+    }, { timeout: 5000 }).catch(() => {});
 
     console.log('    Changelog hidden.');
   } catch (_) {
@@ -74,7 +83,9 @@ async function login(page, username, password) {
 
   console.log(`    [${username}] Clicking login button...`);
   await page.waitForSelector('#loginPromptButton', { timeout: 10000 });
-  await page.click('#loginPromptButton');
+  // force:true bypasses Playwright's interception check — needed because changelogDiv
+  // may still be in the DOM (even if hidden) and Playwright considers it an interceptor.
+  await page.click('#loginPromptButton', { force: true });
 
   console.log(`    [${username}] Waiting for login form...`);
   await page.waitForSelector('#loginWindowUsername', { timeout: 10000 });
