@@ -1,5 +1,87 @@
 {
-  "players": {},
-  "tournaments": [],
-  "updatedAt": 0
+  "players": {
+    "Haffey": {
+      "wins": 3,
+      "losses": 0,
+      "titles": 1,
+      "top3": 1,
+      "matches": 3,
+      "points": 10,
+      "gamesPlayed": ["t_20260408"]
+    },
+    "itzJ": {
+      "wins": 2,
+      "losses": 2,
+      "titles": 0,
+      "top3": 1,
+      "matches": 4,
+      "points": 5,
+      "gamesPlayed": ["t_20260408"]
+    },
+    "a1cluke": {
+      "wins": 1,
+      "losses": 2,
+      "titles": 0,
+      "top3": 1,
+      "matches": 3,
+      "points": 2,
+      "gamesPlayed": ["t_20260408"]
+    },
+    "guest_663575": {
+      "wins": 0,
+      "losses": 2,
+      "titles": 0,
+      "top3": 0,
+      "matches": 2,
+      "points": 1,
+      "gamesPlayed": ["t_20260408"]
+    }
+  },
+  "tournaments": [
+    {
+      "id": "t_20260408",
+      "name": "Tournament 08/04/2026",
+      "format": "double_elimination",
+      "date": 1775674800000,
+      "champion": "Haffey",
+      "second": "itzJ",
+      "third": "a1cluke",
+      "players": ["Haffey", "itzJ", "a1cluke", "guest_663575"],
+      "matchLog": [
+        { "matchId": "wb_r1_m1", "round": "WB R1", "p1": "Haffey",        "p2": "guest_663575", "winner": "Haffey",        "loser": "guest_663575", "method": "series" },
+        { "matchId": "wb_r1_m2", "round": "WB R1", "p1": "itzJ",          "p2": "a1cluke",      "winner": "itzJ",          "loser": "a1cluke",      "method": "series" },
+        { "matchId": "wb_r2_m1", "round": "WB Final", "p1": "Haffey",     "p2": "itzJ",         "winner": "Haffey",        "loser": "itzJ",         "method": "series" },
+        { "matchId": "lb_r1_m1", "round": "LB R1",  "p1": "guest_663575", "p2": "a1cluke",      "winner": "a1cluke",       "loser": "guest_663575", "method": "series" },
+        { "matchId": "lb_r2_m1", "round": "LB R2",  "p1": "a1cluke",      "p2": "itzJ",         "winner": "itzJ",          "loser": "a1cluke",      "method": "series" },
+        { "matchId": "gf_m1",    "round": "Grand Final", "p1": "Haffey",  "p2": "itzJ",         "winner": "Haffey",        "loser": "itzJ",         "method": "series" }
+      ],
+      "bracket": {
+        "format": "double_elimination",
+        "wb": [
+          [
+            { "id": "wb_r1_m1", "p1": "Haffey",    "p2": "guest_663575", "winner": "Haffey",  "loser": "guest_663575", "bracket": "W", "roundIdx": 0, "matchIdx": 0 },
+            { "id": "wb_r1_m2", "p1": "itzJ",      "p2": "a1cluke",      "winner": "itzJ",    "loser": "a1cluke",      "bracket": "W", "roundIdx": 0, "matchIdx": 1 }
+          ],
+          [
+            { "id": "wb_r2_m1", "p1": "Haffey",    "p2": "itzJ",         "winner": "Haffey",  "loser": "itzJ",         "bracket": "W", "roundIdx": 1, "matchIdx": 0 }
+          ]
+        ],
+        "lb": [
+          [
+            { "id": "lb_r1_m1", "p1": "guest_663575", "p2": "a1cluke",   "winner": "a1cluke", "loser": "guest_663575", "bracket": "L", "roundIdx": 0, "matchIdx": 0 }
+          ],
+          [
+            { "id": "lb_r2_m1", "p1": "a1cluke",      "p2": "itzJ",      "winner": "itzJ",    "loser": "a1cluke",      "bracket": "L", "roundIdx": 1, "matchIdx": 0 }
+          ]
+        ],
+        "gf": [
+          { "id": "gf_m1", "p1": "Haffey", "p2": "itzJ", "winner": "Haffey", "loser": "itzJ", "bracket": "GF", "roundIdx": 0, "matchIdx": 0 }
+        ],
+        "eliminated": ["guest_663575", "a1cluke", "itzJ"],
+        "champion": "Haffey"
+      },
+      "replayDir": null
+    }
+  ],
+  "updatedAt": 1775674800000
 }
