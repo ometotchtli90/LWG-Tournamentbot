@@ -863,7 +863,6 @@ async function overrideResult(matchId, newWinner) {
   if (!newWinner) return { error: `${newWinner} is not a player in this match` };
   if (newWinner === oldWinner) return { error: `${newWinner} already won this match` };
 
-  // Check if old winner has already played their next match
   const newLoser  = newWinner === match.p1 ? match.p2 : match.p1;
   const nextRi    = match.roundIdx + 1;
   let nextMatch   = null;
@@ -872,6 +871,32 @@ async function overrideResult(matchId, newWinner) {
     nextMatch = state.bracket.rounds[nextRi][Math.floor(match.matchIdx / 2)];
   } else if (fmt === 'double_elimination' && match.bracket === 'W' && nextRi < state.bracket.wb.length) {
     nextMatch = state.bracket.wb[nextRi][Math.floor(match.matchIdx / 2)];
+  }
+
+  // ── Cancel any running matches involving displaced players ─
+  // When an override changes who goes where in the bracket, any matches
+  // that are already in-progress with the now-wrong players must be
+  // stopped immediately so the correct pairings can be started instead.
+  const displaced = new Set([oldWinner.toLowerCase(), oldLoser.toLowerCase()]);
+  const allBracketMatches = fmt === 'double_elimination'
+    ? [...(state.bracket.wb || []), ...(state.bracket.lb || []), ...(state.bracket.gf || [])].flat()
+    : (state.bracket.rounds || []).flat();
+
+  for (const [mid, entry] of Object.entries(state.activeMatches)) {
+    const bm = allBracketMatches.find(m => m && m.id === mid);
+    if (!bm) continue;
+    const involves = displaced.has((bm.p1 || '').toLowerCase()) || displaced.has((bm.p2 || '').toLowerCase());
+    if (!involves) continue;
+    console.log(`[overrideResult] Cancelling active match ${mid} (${bm.p1} vs ${bm.p2}) — players displaced by override`);
+    if (state.cancelTokens[mid]) {
+      state.cancelTokens[mid].cancelled = true;
+      delete state.cancelTokens[mid];
+    }
+    const w = state.workerPages.find(wp => wp.username === entry.workerName);
+    if (w) w.busy = false;
+    delete state.activeMatches[mid];
+    // Also reset the bracket match so it can be re-queued with correct players
+    if (!bm.winner) { bm.winner = null; bm.loser = null; }
   }
 
   // ── Undo old result ──────────────────────────────────────
