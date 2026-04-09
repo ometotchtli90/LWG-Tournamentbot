@@ -489,8 +489,12 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
   // After bans this will be the surviving maps (e.g. 3 for BO3 with 5-map pool).
   let remainingMaps = [...mapPool];
 
-  // ── Map ban phase (only for BO3+ with pool of >1 maps) ────
-  if (bestOf > 1 && mapPool.length > 1) {
+  // ── Map ban phase ─────────────────────────────────────────
+  // Only run bans when there are MORE maps than games in the series.
+  // e.g. BO3 with exactly 3 maps → no bans (maps play in order: G1→M1, G2→M2, G3→M3)
+  //      BO3 with 4+ maps       → each player bans 1, remaining maps are played
+  // This prevents the degenerate case where bans leave only 1 map for all games.
+  if (bestOf > 1 && mapPool.length > bestOf) {
     // Bail out immediately if already cancelled before ban phase starts
     if (cancelToken?.cancelled) return { winner: p1, loser: p2, method: 'cancelled', wins };
 
