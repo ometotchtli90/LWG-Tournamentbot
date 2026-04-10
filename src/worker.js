@@ -12,18 +12,11 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   log(`Hosting: ${p1} vs ${p2}`);
 
-  // ── Announce in lobby chat + PM both players ─────────────
+  // ── Announce in lobby chat ───────────────────────────────
   const waitMins = Math.round(cfg.joinWaitMs / 60000);
   await ph.sendLobbyChat(page,
     `🎮 Now hosting: ${p1} vs ${p2} — please join within ${waitMins} minute${waitMins !== 1 ? 's' : ''}!`
   );
-  // PM each player directly so they definitely see the notification
-  await ph.sendPrivateMessage(page, p1,
-    `🎮 Your match is ready! Join the game I'm hosting now. You have ${waitMins} minute${waitMins !== 1 ? 's' : ''}.`
-  ).catch(() => {});
-  await ph.sendPrivateMessage(page, p2,
-    `🎮 Your match is ready! Join the game I'm hosting now. You have ${waitMins} minute${waitMins !== 1 ? 's' : ''}.`
-  ).catch(() => {});
 
   // ── 1. Click Create/Play button ─────────────────────────
   log('Clicking Create Game...');
@@ -126,14 +119,10 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   status('game_started');
 
-  // ── Send GLHF + gg reminder via PM to both players ──────
-  // sendIngameChat is unreliable from spectator mode — PMs always reach
-  // players regardless of whether they are in-game or in the lobby.
-  await page.waitForTimeout(1500);
-  const ggMsg = `🎮 GLHF! When the game is over, the LOSER types "gg" in chat before leaving — that's how the result gets recorded. Good luck!`;
-  await ph.sendPrivateMessage(page, p1, ggMsg).catch(() => {});
-  await ph.sendPrivateMessage(page, p2, ggMsg).catch(() => {});
-  log('GLHF + gg reminder PMed to both players.');
+  // ── Send GLHF + gg reminder in-game after 10s ───────────
+  await page.waitForTimeout(10000);
+  await ph.sendIngameChat(page, `glhf boys, please write 'gg' before you leave. Thanks!`);
+  log('GLHF + gg reminder sent in-game.');
 
   // ── 9. Watch for result ──────────────────────────────────
   log('Watching for result...');

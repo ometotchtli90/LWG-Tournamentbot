@@ -216,7 +216,10 @@ async function sendPrivateMessage(page, targetPlayer, text) {
     const list = document.getElementById('playersListOnline');
     if (!list) return false;
     for (const p of list.querySelectorAll('p.playerListPlayer')) {
-      if (p.innerText?.trim().toLowerCase() === target.toLowerCase()) {
+      // Strip clan/rank tags (e.g. "[SMURF] DieTrying" → "DieTrying") before comparing
+      const rawName = p.innerText?.trim() || '';
+      const cleanName = rawName.replace(/^(\[.*?\]|<.*?>)\s*/, '').trim();
+      if (cleanName.toLowerCase() === target.toLowerCase()) {
         const container = p.closest('div') || p.parentElement;
         const btn = container?.querySelector('button.inlineChatButton')
                  || p.parentElement?.querySelector('button.inlineChatButton');
@@ -236,8 +239,11 @@ async function sendPrivateMessage(page, targetPlayer, text) {
   const deadline = Date.now() + 6000;
   while (Date.now() < deadline) {
     chatInput = await page.evaluate((target) => {
+      const targetLow = target.toLowerCase();
       for (const h2 of document.querySelectorAll('h2.windowTitle')) {
-        if (!h2.innerText?.includes(target)) continue;
+        const titleRaw = h2.innerText?.trim() || '';
+        const titleClean = titleRaw.replace(/^(\[.*?\]|<.*?>)\s*/, '').trim();
+        if (!titleClean.toLowerCase().includes(targetLow) && !titleRaw.toLowerCase().includes(targetLow)) continue;
         const win = h2.closest('.window, .floatingWindow, .chatWindow')
                  || h2.parentElement?.parentElement?.parentElement;
         const input = win?.querySelector('input.queryInput[id^="chatInput"]')
