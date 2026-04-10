@@ -171,51 +171,155 @@ function championSingle(bracket) {
 
 // ═══════════════════════════════════════════════════════════
 // DOUBLE ELIMINATION
+//
+// Approach (mirrors the `double-elimination` npm library):
+//   • Pad to next power-of-2 with 'BYE' strings up-front so every
+//     WB R1 slot is occupied — BYE is a real match participant.
+//   • Wire every match with explicit _winNext / _loseNext links at
+//     build time (same as the library's nextMatchId pattern).
+//     applyWinDouble just follows the link — no routing math at runtime.
+//   • resolvePendingByes auto-wins any match where one side is 'BYE',
+//     cascading until the bracket is clean.
+//
+// LB structure (wbRounds = log2(size) + 1):
+//   Total LB rounds = 2 * (wbRounds - 1)
+//   Even LB rounds (0, 2, 4 …) — "drop" rounds:
+//     Receive fresh WB losers in p1.  Size = r1.length >> (lbRi/2 + 1)
+//   Odd  LB rounds (1, 3, 5 …) — "play-off" rounds:
+//     LB survivors play each other.  Same size as preceding even round.
+//
+// WB loser drop targets (0-indexed):
+//   WBR0 loser m  → LB[0][ floor(m/2) ], slot = m%2===0 ? p1 : p2
+//   WBRw loser m  → LB[2w-1][ m ],       slot = p1
+//     (WB round w and LB round 2w-1 always have equal match counts)
+//
+// LB winner advance:
+//   Even LB round r, match i  → LB[r+1][i],            slot = p2
+//   Odd  LB round r, match i  → LB[r+1][ floor(i/2) ], slot = p2
+//   Last LB round winner      → GF p2
 // ═══════════════════════════════════════════════════════════
 
 function buildDoubleElim(players) {
   const seeded = shuffle(players);
   const size   = nextPow2(seeded.length);
+
+  // Pad with BYE strings — BYEs are real participants, cleaned up by resolvePendingByes
   while (seeded.length < size) seeded.push('BYE');
 
-  // Winner bracket
+  // ── Winner bracket skeleton ──────────────────────────────
   const wb = [];
   const r1 = [];
-  for (let i = 0; i < seeded.length; i += 2) {
+  for (let i = 0; i < size; i += 2) {
     r1.push(makeMatch(seeded[i], seeded[i + 1], { bracket: 'W', roundIdx: 0, matchIdx: r1.length }));
   }
   wb.push(r1);
-  let prev = r1, ri = 1;
-  while (prev.length > 1) {
+
+  let wbPrev = r1, wbRi = 1;
+  while (wbPrev.length > 1) {
     const r = [];
-    for (let i = 0; i < Math.ceil(prev.length / 2); i++) {
-      r.push(makeMatch(null, null, { bracket: 'W', roundIdx: ri, matchIdx: i }));
+    for (let i = 0; i < wbPrev.length / 2; i++) {
+      r.push(makeMatch(null, null, { bracket: 'W', roundIdx: wbRi, matchIdx: i }));
     }
-    wb.push(r); prev = r; ri++;
+    wb.push(r);
+    wbPrev = r;
+    wbRi++;
   }
 
-  // Loser bracket — 2*(wbRounds-1) rounds
-  const lb        = [];
-  const lbRounds  = Math.max(2, (wb.length - 1) * 2);
-  let   lbSize    = Math.max(1, r1.length / 2);
-  for (let r = 0; r < lbRounds; r++) {
+  const wbRounds = wb.length;
+
+  // ── Loser bracket skeleton ───────────────────────────────
+  const lbTotalRounds = 2 * (wbRounds - 1);
+  const lb = [];
+  for (let lbRi = 0; lbRi < lbTotalRounds; lbRi++) {
+    // Even rounds (0,2,4…) = consolidation: size halves each time → r1.length >> (lbRi/2 + 1)
+    // Odd  rounds (1,3,5…) = drop rounds:   same size as preceding even round
+    const consolIdx  = Math.floor(lbRi / 2);              // 0,0,1,1,2,2,…
+    const matchCount = Math.max(1, r1.length >> (consolIdx + 1));
     const round = [];
-    for (let i = 0; i < Math.max(1, lbSize); i++) {
-      round.push(makeMatch(null, null, { bracket: 'L', roundIdx: r, matchIdx: i }));
+    for (let i = 0; i < matchCount; i++) {
+      round.push(makeMatch(null, null, { bracket: 'L', roundIdx: lbRi, matchIdx: i }));
     }
     lb.push(round);
-    if (r % 2 === 1) lbSize = Math.max(1, Math.ceil(lbSize / 2));
   }
 
-  // Grand Final
+  // ── Grand Final ──────────────────────────────────────────
   const gf = [makeMatch(null, null, { bracket: 'GF', roundIdx: 0, matchIdx: 0 })];
 
-  return {
-    format: 'double_elimination',
-    wb, lb, gf,
-    eliminated:  [],
-    lbDropQueue: [],
-  };
+  // ── Wire WB winner links ─────────────────────────────────
+  for (let r = 0; r < wb.length; r++) {
+    for (let i = 0; i < wb[r].length; i++) {
+      const m = wb[r][i];
+      if (r + 1 < wb.length) {
+        m._winNext = { src: 'wb', ri: r + 1, mi: Math.floor(i / 2), slot: i % 2 === 0 ? 'p1' : 'p2' };
+      } else {
+        m._winNext = { src: 'gf', ri: 0, mi: 0, slot: 'p1' };
+      }
+    }
+  }
+
+  // ── Wire WB loser-drop links ─────────────────────────────
+  // LB round semantics (0-indexed):
+  //   Even LB rounds (0, 2, 4 …) — "consolidation": LB survivors play each other.
+  //     Size = prev odd round size / 2. Two LB survivors share one slot (p1, p2).
+  //   Odd  LB rounds (1, 3, 5 …) — "drop": LB survivor (p1) vs fresh WB loser (p2).
+  //     Size = same as preceding even round.
+  //
+  // WBR0 losers fill LBR0 (even/consol) — pairs of losers share a match:
+  //   WBR0[m].loser → LBR0[ floor(m/2) ], slot = m%2===0 ? p1 : p2
+  // WBRw (w≥1) losers fill LBR(2w-1) (odd/drop) as p2:
+  //   WBRw[m].loser → LBR(2w-1)[m], slot = p2
+
+  // Edge case: no LB rounds (2 players) — WB loser goes to GF p2
+  for (let i = 0; i < r1.length; i++) {
+    if (lb.length === 0) {
+      r1[i]._loseNext = { src: 'gf', ri: 0, mi: 0, slot: 'p2' };
+    } else {
+      r1[i]._loseNext = {
+        src: 'lb', ri: 0, mi: Math.floor(i / 2), slot: i % 2 === 0 ? 'p1' : 'p2',
+      };
+    }
+  }
+  for (let r = 1; r < wb.length; r++) {
+    for (let i = 0; i < wb[r].length; i++) {
+      wb[r][i]._loseNext = { src: 'lb', ri: 2 * r - 1, mi: i, slot: 'p2' };
+    }
+  }
+
+  // ── Wire LB winner links ─────────────────────────────────
+  // Even LB round r (consol), match i → LBR(r+1)[i], slot p1
+  //   (the survivor of a consol match advances 1:1 to the next drop round as p1)
+  // Odd  LB round r (drop),   match i → LBR(r+1)[ floor(i/2) ], slot = i%2===0 ? p1 : p2
+  //   (two drop-round winners pair up in the next consol round)
+  // Last LB round winner → GF p2
+  for (let r = 0; r < lb.length; r++) {
+    for (let i = 0; i < lb[r].length; i++) {
+      const m = lb[r][i];
+      if (r + 1 < lb.length) {
+        if (r % 2 === 0) {
+          // Even (consol) → next odd (drop): 1:1, survivor is p1
+          m._winNext = { src: 'lb', ri: r + 1, mi: i, slot: 'p1' };
+        } else {
+          // Odd (drop) → next even (consol): halve, two winners pair up
+          m._winNext = { src: 'lb', ri: r + 1, mi: Math.floor(i / 2), slot: i % 2 === 0 ? 'p1' : 'p2' };
+        }
+      } else {
+        m._winNext = { src: 'gf', ri: 0, mi: 0, slot: 'p2' };
+      }
+    }
+  }
+
+  return { format: 'double_elimination', wb, lb, gf, eliminated: [] };
+}
+
+// Follow a _winNext or _loseNext link and place the player into the target slot.
+// BYE players are also placed so they cascade correctly through the bracket.
+function _placeInto(bracket, link, player) {
+  if (!link || !player) return;
+  let target;
+  if      (link.src === 'wb') target = bracket.wb[link.ri]?.[link.mi];
+  else if (link.src === 'lb') target = bracket.lb[link.ri]?.[link.mi];
+  else if (link.src === 'gf') target = bracket.gf[link.mi];
+  if (target && !target.winner) target[link.slot] = player;
 }
 
 function applyWinDouble(bracket, match, winner) {
@@ -224,27 +328,23 @@ function applyWinDouble(bracket, match, winner) {
   match.loser  = loser;
 
   if (match.bracket === 'W') {
-    if (loser && loser !== 'BYE') {
-      bracket.lbDropQueue.push({ loser, fromWbRound: match.roundIdx, matchIdx: match.matchIdx });
-      placeLbDrops(bracket);
+    // Drop loser into LB (BYEs included — resolvePendingByes will clean up)
+    _placeInto(bracket, match._loseNext, loser);
+    // Also allow BYE losers to propagate so downstream slots get filled
+    if (loser === 'BYE' && match._loseNext) {
+      const link = match._loseNext;
+      let target;
+      if      (link.src === 'lb') target = bracket.lb[link.ri]?.[link.mi];
+      else if (link.src === 'wb') target = bracket.wb[link.ri]?.[link.mi];
+      if (target && !target.winner) target[link.slot] = 'BYE';
     }
-    // Propagate winner in WB
-    const nextRi = match.roundIdx + 1;
-    if (nextRi < bracket.wb.length) {
-      const next = bracket.wb[nextRi][Math.floor(match.matchIdx / 2)];
-      if (next) { if (match.matchIdx % 2 === 0) next.p1 = winner; else next.p2 = winner; }
-    } else {
-      bracket.gf[0].p1 = winner;
-    }
+    // Advance winner in WB / to GF
+    _placeInto(bracket, match._winNext, winner);
+
   } else if (match.bracket === 'L') {
     if (loser && loser !== 'BYE') bracket.eliminated.push(loser);
-    const nextRi = match.roundIdx + 1;
-    if (nextRi < bracket.lb.length) {
-      const next = bracket.lb[nextRi][Math.floor(match.matchIdx / 2)];
-      if (next) { if (match.matchIdx % 2 === 0) next.p1 = winner; else next.p2 = winner; }
-    } else {
-      bracket.gf[0].p2 = winner;
-    }
+    _placeInto(bracket, match._winNext, winner);
+
   } else if (match.bracket === 'GF') {
     if (loser && loser !== 'BYE') bracket.eliminated.push(loser);
     bracket.gf[0].winner = winner;
@@ -254,25 +354,9 @@ function applyWinDouble(bracket, match, winner) {
   return { winner, loser };
 }
 
-function placeLbDrops(bracket) {
-  bracket.lbDropQueue = bracket.lbDropQueue.filter(drop => {
-    const targetR = Math.max(0, drop.fromWbRound * 2 - 1);
-    const lbR     = bracket.lb[Math.min(targetR, bracket.lb.length - 1)];
-    if (!lbR) return false;
-    const slot = lbR.find(m => !m.winner && (!m.p1 || !m.p2));
-    if (!slot) return true; // keep in queue
-    if (!slot.p1) slot.p1 = drop.loser;
-    else          slot.p2 = drop.loser;
-    return false;
-  });
-}
-
+// autoByesDouble: kept for API compatibility — delegates to resolvePendingByes.
 function autoByesDouble(bracket) {
-  bracket.wb[0].forEach(m => {
-    if (m.p1 === 'BYE' || m.p2 === 'BYE') {
-      applyWinDouble(bracket, m, m.p1 === 'BYE' ? m.p2 : m.p1);
-    }
-  });
+  resolvePendingByes(bracket);
 }
 
 function readyMatchesDouble(bracket) {
@@ -490,18 +574,34 @@ function getRoundName(match, bracket) {
 }
 
 // ── Auto-resolve any BYE matches that became ready ───────
-// Call this after every applyWin to propagate BYEs in later rounds.
-// For single_elimination, BYEs are now structural (no BYE string players),
-// so this only applies to double_elimination.
+// Call this after every applyWin to propagate BYEs through the bracket.
+// BYEs are 'BYE' strings (the library approach); when one side is 'BYE'
+// the real player wins automatically and their result is applied so the
+// BYE cascades into every downstream slot that needs it.
+// BYE vs BYE matches are ghost matches — they are marked done with no
+// winner so they never block the bracket and their downstream slots
+// simply receive nothing (which is correct: that branch of the tree
+// collapses entirely when both seeds are byes).
 function resolvePendingByes(bracket) {
   let resolved = true;
   while (resolved) {
     resolved = false;
-    const fmt = bracket.format;
-    if (fmt === 'double_elimination') {
+    if (bracket.format === 'double_elimination') {
       const allRounds = [...(bracket.wb || []), ...(bracket.lb || []), bracket.gf || []].flat();
       for (const m of allRounds) {
-        if (!m || m.winner) continue;
+        if (!m || m.winner !== null) continue;
+
+        // BYE vs BYE — ghost match, propagate BYE downstream via links
+        if (m.p1 === 'BYE' && m.p2 === 'BYE') {
+          m.winner = 'BYE';
+          m.loser  = 'BYE';
+          _placeInto(bracket, m._winNext,  'BYE');
+          _placeInto(bracket, m._loseNext, 'BYE');
+          resolved = true;
+          continue;
+        }
+
+        // One real player vs BYE — real player wins automatically
         if ((m.p1 === 'BYE' || m.p2 === 'BYE') && (m.p1 || m.p2)) {
           const winner = m.p1 === 'BYE' ? m.p2 : m.p1;
           if (winner && winner !== 'BYE') {
