@@ -192,6 +192,7 @@ function handleChatMessage(username, message) {
   }
   if (msg.toLowerCase() === '!bracket')   { printBracketToChat(); return; }
   if (msg.toLowerCase() === '!standings') { printStandings();     return; }
+  if (msg.toLowerCase() === '!commands')  { chat(cfg.COMMANDS_HELP); return; }
 }
 
 async function chat(text) {
@@ -549,7 +550,12 @@ function startMatch(match, worker, gameName) {
     if (state.activeMatches[match.id]) delete state.activeMatches[match.id];
     if (state.cancelTokens[match.id])  delete state.cancelTokens[match.id];
 
-    if (err.message === 'join_timeout') {
+    if (err.message === 'forfeit') {
+      const forfeiter = err.forfeiter;
+      const winner    = forfeiter === match.p1 ? match.p2 : match.p1;
+      await chat(`🏳️ ${forfeiter} forfeited. ${winner} advances.`);
+      await applyResult(match, winner, forfeiter, 'forfeit', gameName);
+    } else if (err.message === 'join_timeout') {
       const p1Joined = err.p1Joined;
       const p2Joined = err.p2Joined;
       if (p1Joined && !p2Joined) {

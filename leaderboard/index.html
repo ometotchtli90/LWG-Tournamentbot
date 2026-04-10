@@ -887,7 +887,8 @@ function render(data) {
     const d = new Date(t.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
     const fmt = {single_elimination:'Single Elim',double_elimination:'Double Elim',swiss:'Swiss'}[t.format]||t.format||'';
     const mrows = (t.matchLog||[]).filter(m=>m.winner&&m.winner!=='BYE').map(m=>{
-      const badge = m.method!=='gg'?`<span class="mbadge">${esc(m.method)}</span>`:'';
+      const badgeStyle = m.method==='forfeit' ? ' style="background:#5a1a1a;color:#ff6b6b;border-color:#7a2a2a;"' : m.method==='no_show' ? ' style="background:#3a2a00;color:#f0a500;border-color:#5a4200;"' : '';
+      const badge = m.method!=='gg'?`<span class="mbadge"${badgeStyle}>${esc(m.method==='no_show'?'no show':m.method)}</span>`:'';
       return `<tr>
         <td class="mcol-round">${esc(m.round||'')}</td>
         <td>${esc(m.p1||'')}</td>

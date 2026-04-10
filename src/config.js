@@ -1,5 +1,14 @@
 'use strict';
+
+const COMMANDS_HELP =
+  '📋 Commands: ' +
+  '!ready — confirm you are ready to start | ' +
+  '!forfeit — forfeit this match (you lose) | ' +
+  '!leave — remove yourself from signup (signup phase only) | ' +
+  '!commands — show this list';
+
 module.exports = {
+  COMMANDS_HELP,
   signupKeyword:       '!join',
   signupDurationMs:    5 * 60_000,   // 5 minutes
   mapName:             'Ravaged',

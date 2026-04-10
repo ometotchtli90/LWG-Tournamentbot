@@ -101,7 +101,22 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   log('Asking for !ready...');
   const READY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
   await ph.sendGameChat(page, `${p1} vs ${p2} — type !ready to start`);
-  const bothReady = await waitForBothReady(page, p1, p2, READY_TIMEOUT_MS);
+  const readyResult = await waitForBothReady(page, p1, p2, READY_TIMEOUT_MS);
+
+  // !forfeit typed by one of the players before the game started
+  if (readyResult && typeof readyResult === 'object' && readyResult.forfeit) {
+    const forfeiter = readyResult.forfeit;
+    await ph.sendGameChat(page, `🏳️ ${forfeiter} has forfeited. Match cancelled.`);
+    // Leave the lobby
+    try { await page.click('#gameLobbyWindow #backButton'); await page.waitForTimeout(1000); } catch (_) {
+      try { await page.click('#backButton'); await page.waitForTimeout(1000); } catch (_) {}
+    }
+    const err = new Error('forfeit');
+    err.forfeiter = forfeiter;
+    throw err;
+  }
+
+  const bothReady = readyResult === true;
   if (!bothReady) await ph.sendGameChat(page, '⚠️ Not all confirmed !ready — starting anyway...');
   // Countdown starts immediately once both players are ready (or timeout)
   for (let i = 5; i >= 1; i--) {
@@ -280,25 +295,52 @@ function waitForCorrectPlayers(page, workerName, p1, p2, timeoutMs, onStatus) {
   });
 }
 
+const { COMMANDS_HELP } = cfg;
+
 // ── Wait for both players to type !ready ──────────────────
 // Watches #lobbyGameChatTextArea — the game lobby chat where players
 // type before the game starts. Uses structured username+message parsing.
+// Resolves with: true (both ready) | false (timeout) | { forfeit: playerName }
 function waitForBothReady(page, p1, p2, timeoutMs) {
   return new Promise(resolve => {
     const ready = new Set();
     const p1l = p1.toLowerCase(), p2l = p2.toLowerCase();
     const start = Date.now();
+    let done = false;
 
-    const stop = ph.watchLobbyGameChat(page, (username, message) => {
+    const stop = ph.watchLobbyGameChat(page, async (username, message) => {
+      if (done) return;
       const uLower = ph.stripClanTag(username).toLowerCase();
-      const mLower = message.toLowerCase();
-      // Player must send the message themselves (match by username)
-      if (uLower === p1l && mLower.includes('!ready')) ready.add(p1l);
-      if (uLower === p2l && mLower.includes('!ready')) ready.add(p2l);
+      const mLower = message.trim().toLowerCase();
+
+      // !commands — reply with full command list
+      if (mLower === '!commands') {
+        await ph.sendGameChat(page, COMMANDS_HELP).catch(() => {});
+        return;
+      }
+
+      // !forfeit — forfeiting player loses immediately
+      if (mLower === '!forfeit') {
+        if (uLower === p1l || uLower === p2l) {
+          done = true;
+          clearInterval(iv);
+          stop();
+          resolve({ forfeit: uLower === p1l ? p1 : p2 });
+        }
+        return;
+      }
+
+      // !ready
+      if (mLower.includes('!ready')) {
+        if (uLower === p1l) ready.add(p1l);
+        if (uLower === p2l) ready.add(p2l);
+      }
     });
 
     const iv = setInterval(() => {
+      if (done) return;
       if (ready.size >= 2 || Date.now() - start > timeoutMs) {
+        done = true;
         clearInterval(iv);
         stop();
         resolve(ready.size >= 2);
