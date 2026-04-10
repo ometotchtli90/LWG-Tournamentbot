@@ -646,13 +646,33 @@ async function checkWalkoverChampion() {
   // Both slots filled with real players — normal final, let it play
   if (p1Real && p2Real) return false;
 
-  // One real player, other slot is BYE or not yet filled
-  // Check if the other slot will ever be filled by a real player
-  // (i.e. is there an unfinished upstream match with real players?)
-  const hasRemainingRealMatches = B.readyMatches(state.bracket)
-    .some(m => m.p1 && m.p1 !== 'BYE' && m.p2 && m.p2 !== 'BYE');
+  // One real player, other slot is BYE or not yet filled.
+  // Check whether ANY unfinished match in the bracket still involves a real player
+  // — this includes matches that are pending (players not yet filled) as well as
+  // immediately-ready ones.  Using only readyMatches() here was the bug: a match
+  // like LBR1 (DieTrying vs null) is not "ready" because p2 is still coming from
+  // an in-flight WB match, so readyMatches() skipped it and the walkover fired early.
+  let allUnfinished;
+  if (fmt === 'single_elimination') {
+    allUnfinished = state.bracket.rounds.flat();
+  } else {
+    allUnfinished = [
+      ...state.bracket.wb.flat(),
+      ...state.bracket.lb.flat(),
+      // exclude the final itself — we already know it's incomplete
+    ];
+  }
 
-  if (hasRemainingRealMatches) return false; // real matches still to play — wait
+  const hasUnfinishedRealMatch = allUnfinished.some(m => {
+    if (!m || m.winner !== null) return false;          // already done (including BYE wins)
+    if (m === finalMatch) return false;                 // skip the final itself
+    // The match involves at least one real player who is still competing
+    const has1 = m.p1 && m.p1 !== 'BYE';
+    const has2 = m.p2 && m.p2 !== 'BYE';
+    return has1 || has2;
+  });
+
+  if (hasUnfinishedRealMatch) return false; // real matches still to play — wait
 
   // The only remaining real player wins by walkover
   const champ = p1Real ? finalMatch.p1 : p2Real ? finalMatch.p2 : null;
