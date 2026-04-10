@@ -328,8 +328,12 @@ function applyWinDouble(bracket, match, winner) {
   match.loser  = loser;
 
   if (match.bracket === 'W') {
-    // Drop loser into LB (BYEs included — resolvePendingByes will clean up)
-    _placeInto(bracket, match._loseNext, loser);
+    // Skip LB drop if loser was pre-marked eliminated (forfeit / no-show)
+    const alreadyElim = loser && loser !== 'BYE' && (bracket.eliminated || []).includes(loser);
+    if (!alreadyElim) {
+      // Drop loser into LB (BYEs included — resolvePendingByes will clean up)
+      _placeInto(bracket, match._loseNext, loser);
+    }
     // Also allow BYE losers to propagate so downstream slots get filled
     if (loser === 'BYE' && match._loseNext) {
       const link = match._loseNext;

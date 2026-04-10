@@ -623,9 +623,9 @@
       <div class="card-title">Tournament</div>
       <button class="btn btn-blue btn-full btn-sm" id="btnBoot" onclick="doBoot()">Launch Browsers</button>
       <div id="bootWarning" style="display:none;padding:5px 7px;background:#2d1a1a;border:1px solid var(--red);color:var(--red);font-size:8px;line-height:1.6;"></div>
-      <div style="display:flex;gap:4px;">
-        <button class="btn btn-gold btn-sm" style="flex:1;min-width:0;" id="btnOpenSignupInstant" onclick="doOpenSignup('instant')" disabled>Open Signup</button>
-        <button class="btn btn-ghost btn-sm" style="flex:1;min-width:0;" id="btnOpenSignupTimed" onclick="doOpenSignup('timed')" disabled>Timed</button>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <button class="btn btn-full btn-sm" style="min-height:36px;background:#c05a00;color:#fff;border-color:#e06a00;" id="btnOpenSignupInstant" onclick="doOpenSignup('instant')" disabled>Open Signup — Instant Start</button>
+        <button class="btn btn-gold btn-full btn-sm" style="min-height:36px;" id="btnOpenSignupTimed" onclick="doOpenSignup('timed')" disabled>Open Signup — Start after <span id="timedMinsLabel">5</span> minutes</button>
       </div>
       <div id="signupModeHint" style="display:none;font-size:8px;color:var(--muted);line-height:1.6;"></div>
       <div id="signupTimer" style="display:none;text-align:center;padding:5px;background:var(--navy3);border:1px solid var(--border);">
@@ -759,7 +759,7 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div>
         <div class="field-row-label">Signup Duration (min)</div>
-        <input id="cfgSignup" type="text">
+        <input id="cfgSignup" type="text" oninput="const l=document.getElementById('timedMinsLabel');if(l)l.textContent=this.value||'?';">
       </div>
       <div>
         <div class="field-row-label">Join Wait (min)</div>
@@ -1613,7 +1613,10 @@ async function loadSettingsForm() {
   }
 
   if (cfgRes) {
-    document.getElementById('cfgSignup').value = (cfgRes.signupDurationMs || 120000) / 60000;
+    const signupMins = (cfgRes.signupDurationMs || 120000) / 60000;
+    document.getElementById('cfgSignup').value = signupMins;
+    const timedLabel = document.getElementById('timedMinsLabel');
+    if (timedLabel) timedLabel.textContent = signupMins;
     document.getElementById('cfgMin').value    = cfgRes.minPlayers ?? 4;
     document.getElementById('cfgMax').value    = cfgRes.maxPlayers ?? 4;
     document.getElementById('cfgJoin').value   = (cfgRes.joinWaitMs || 900000) / 60000;

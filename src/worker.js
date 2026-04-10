@@ -311,7 +311,8 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
     const stop = ph.watchLobbyGameChat(page, async (username, message) => {
       if (done) return;
       const uLower = ph.stripClanTag(username).toLowerCase();
-      const mLower = message.trim().toLowerCase();
+      // Strip any "[to all]" / "[Team N]" prefixes LWG may prepend in game lobby chat
+      const mLower = message.trim().replace(/^\[.*?\]\s*/, '').toLowerCase();
 
       // !commands — reply with full command list
       if (mLower === '!commands') {

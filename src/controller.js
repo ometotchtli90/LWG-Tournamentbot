@@ -731,6 +731,14 @@ async function applyResult(match, winner, loser, method, gameName) {
     if (w) w.busy = false;
     delete state.activeMatches[match.id];
   }
+  // Forfeit / no-show: mark loser eliminated BEFORE applyWin so the bracket engine
+  // skips the LB drop (double elim) — forfeiting players are fully eliminated immediately.
+  const isDisqualified = method === 'forfeit' || method === 'no_show';
+  if (isDisqualified && loser && loser !== 'BYE') {
+    if (!state.bracket.eliminated) state.bracket.eliminated = [];
+    if (!state.bracket.eliminated.includes(loser)) state.bracket.eliminated.push(loser);
+  }
+
   B.applyWin(state.bracket, match, winner);
   // Auto-resolve any BYE matches that became available after this result
   B.resolvePendingByes(state.bracket);
@@ -742,7 +750,9 @@ async function applyResult(match, winner, loser, method, gameName) {
   if (winner !== 'BYE') {
     if (fmt === 'double_elimination') {
       if (match.bracket === 'W') {
-        annMsg = `🏆 ${winner} → Winner Bracket | ${loser} → Loser Bracket`;
+        annMsg = isDisqualified
+          ? `🏳️ ${loser} is eliminated. ${winner} advances in the Winner Bracket.`
+          : `🏆 ${winner} → Winner Bracket | ${loser} → Loser Bracket`;
       } else if (match.bracket === 'L') {
         annMsg = `🏆 ${winner} advances in Loser Bracket | ${loser} eliminated`;
       } else {

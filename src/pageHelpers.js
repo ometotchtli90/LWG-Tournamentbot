@@ -371,7 +371,8 @@ function watchGameChat(page, onLine, onProtocol) {
 // ── Watch game lobby chat (#lobbyGameChatTextArea) ──────────
 // Same structure as main lobby: span[id^="chat"] with a.playerNameInList
 function watchLobbyGameChat(page, onMessage) {
-  let lastCount = 0;
+  let lastCount   = 0;
+  let initialized = false;
   const iv = setInterval(async () => {
     try {
       const messages = await page.evaluate((since) => {
@@ -384,6 +385,14 @@ function watchLobbyGameChat(page, onMessage) {
           idx:      since + i,
         }));
       }, lastCount);
+
+      // On first tick, snapshot current position without processing —
+      // prevents stale messages typed before the game lobby opened from being replayed.
+      if (!initialized) {
+        initialized = true;
+        if (messages.length) lastCount = messages[messages.length - 1].idx + 1;
+        return;
+      }
 
       for (const m of messages) {
         if (m.username && m.message) onMessage(m.username, m.message);
