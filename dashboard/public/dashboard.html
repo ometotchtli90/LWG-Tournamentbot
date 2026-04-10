@@ -1372,7 +1372,7 @@ function renderButtons() {
   if (_btnNew)    _btnNew.style.display    = (_isDone && booted) ? 'block' : 'none';
   // Cancel: only when there is something active to cancel (signup or running)
   // Hidden during idle (nothing to cancel) and done (replaced by New Tournament)
-  const _showCancel = !_isDone && S.phase !== 'idle';
+  const _showCancel = S.phase === 'signup' || S.phase === 'running';
   if (_btnCancel) _btnCancel.style.display = _showCancel ? 'block' : 'none';
 
   // Reconnect: visible whenever browsers are booted
