@@ -190,8 +190,6 @@ function handleChatMessage(username, message) {
   if (state.phase === 'running' && msg.toLowerCase().startsWith(cfg.resultKeyword.toLowerCase() + ' ')) {
     reportWin(msg.slice(cfg.resultKeyword.length + 1).trim(), username); return;
   }
-  if (msg.toLowerCase() === '!bracket')   { printBracketToChat(); return; }
-  if (msg.toLowerCase() === '!standings') { printStandings();     return; }
   if (msg.toLowerCase() === '!commands')  { chat(cfg.COMMANDS_HELP); return; }
 }
 
@@ -844,32 +842,6 @@ async function reportWin(winner, reporter) {
   await applyResult(match, normalized, loser, 'manual', gameName);
 }
 
-// ── Bracket to chat ───────────────────────────────────────
-async function printBracketToChat() {
-  if (!state.bracket) { await chat('No bracket yet.'); return; }
-  const fmt = state.bracket.format;
-
-  if (fmt === 'single_elimination') {
-    for (const [ri, round] of state.bracket.rounds.entries()) {
-      const name = B.getRoundName(round[0], state.bracket);
-      const str  = round.map(m => `[${m.p1||'TBD'} vs ${m.p2||'TBD'}${m.winner ? '→'+m.winner : ''}]`).join(' ');
-      await chat(`📋 ${name}: ${str}`);
-    }
-  } else if (fmt === 'double_elimination') {
-    await chat(`📋 WB: ${state.bracket.wb.map((r,i) => `R${i+1}(${r.filter(m=>m.winner).length}/${r.length})`).join(' ')}`);
-    await chat(`📋 LB: ${state.bracket.lb.map((r,i) => `R${i+1}(${r.filter(m=>m.winner).length}/${r.length})`).join(' ')}`);
-    const gf = state.bracket.gf[0];
-    await chat(`📋 GF: ${gf.p1||'TBD'} vs ${gf.p2||'TBD'}${gf.winner ? ' → '+gf.winner : ''}`);
-  }
-}
-
-async function printStandings() {
-  if (!state.bracket) { await chat('No tournament in progress.'); return; }
-
-  const elim  = state.bracket.eliminated || [];
-  const alive = state.players.filter(p => !elim.includes(p));
-  await chat(`🟢 Alive: ${alive.join(', ')||'none'} | 🔴 Out: ${elim.join(', ')||'none'}`);
-}
 
 // ── Override a completed match result ────────────────────
 // Undoes the old result and re-applies with the new winner.
@@ -1020,8 +992,6 @@ async function dashboardCommand(cmd, args = []) {
     case 'addPlayer':    await registerPlayer(args[0]);          break;
     case 'removePlayer': await unregisterPlayer(args[0]); break;
     case 'forceWin':     await reportWin(args[0], 'DASHBOARD');  break;
-    case 'printBracket': await printBracketToChat();             break;
-    case 'standings':    await printStandings();                 break;
     case 'reset':        await doReset();                        break;
     case 'reconnect':    await doReconnect(args[0]);             break;
     case 'testGG': {
