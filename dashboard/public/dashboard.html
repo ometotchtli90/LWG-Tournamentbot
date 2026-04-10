@@ -594,7 +594,7 @@
 
 <!-- ── Header ─────────────────────────────────────────────── -->
 <header>
-  <span class="logo">🏆 LWG Tournament Bot</span>
+  <span class="logo">LWG Tournament Bot</span>
   <button class="nav-btn active" id="navTournament" onclick="showScreen('tournament')">Tournament</button>
   <button class="nav-btn"        id="navSchedule"   onclick="showScreen('schedule')">📅 Schedule</button>
   <button class="nav-btn"        id="navSettings"   onclick="showScreen('settings')">⚙ Settings</button>
@@ -624,7 +624,7 @@
       <button class="btn btn-blue btn-full btn-sm" id="btnBoot" onclick="doBoot()">Launch Browsers</button>
       <div id="bootWarning" style="display:none;padding:5px 7px;background:#2d1a1a;border:1px solid var(--red);color:var(--red);font-size:8px;line-height:1.6;"></div>
       <div style="display:flex;flex-direction:column;gap:4px;">
-        <button class="btn btn-full btn-sm" style="min-height:36px;background:#c05a00;color:#fff;border-color:#e06a00;" id="btnOpenSignupInstant" onclick="doOpenSignup('instant')" disabled>Open Signup — Instant Start</button>
+        <button class="btn btn-full btn-sm" style="min-height:36px;background:#c05a00;color:#fff;border-color:#e06a00;" id="btnOpenSignupInstant" onclick="doOpenSignup('instant')" disabled>Open Signup — Start when full</button>
         <button class="btn btn-gold btn-full btn-sm" style="min-height:36px;" id="btnOpenSignupTimed" onclick="doOpenSignup('timed')" disabled>Open Signup — Start after <span id="timedMinsLabel">5</span> minutes</button>
       </div>
       <div id="signupModeHint" style="display:none;font-size:8px;color:var(--muted);line-height:1.6;"></div>
