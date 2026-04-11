@@ -187,12 +187,18 @@ async function sendGameChat(page, text) {
 }
 
 // ── Send in-game chat (during active match) ───────────────
+// Switches the #ingameChatDropdown to "All" (*) before sending
+// so all players see the message, not just spectators.
 async function sendIngameChat(page, text) {
   const chunks = splitMessage(text, 200);
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) await page.waitForTimeout(400);
     const chunk = chunks[i];
     const sent = await page.evaluate((val) => {
+      // Switch dropdown to "All" before sending
+      const dropdown = document.getElementById('ingameChatDropdown');
+      if (dropdown) dropdown.value = '*';
+
       const input = document.getElementById('ingameChatInput')
                  || document.querySelector('input[id*="ingame"]')
                  || document.querySelector('input[id*="Ingame"]');
@@ -419,6 +425,22 @@ async function getSlotPlayers(page) {
   });
 }
 
+// ── Get players currently in spectator slots ──────────────
+async function getSpecPlayers(page) {
+  return page.evaluate(() => {
+    const results = [];
+    const specList = document.getElementById('spectatorsList')
+                  || document.querySelector('ul[id*="spectator"]');
+    if (!specList) return results;
+    specList.querySelectorAll('li[data-name]').forEach(li => {
+      const name = li.getAttribute('data-name')?.trim();
+      const removeBtn = li.querySelector('button[id^="remove"]')?.id || null;
+      if (name) results.push({ name, removeBtn });
+    });
+    return results;
+  });
+}
+
 // ── Kick a player by their remove button id ───────────────
 async function kickPlayer(page, removeBtnId) {
   await page.evaluate((id) => {
@@ -517,6 +539,6 @@ module.exports = {
   navigateToLobby, login, detectUsername,
   sendLobbyChat, sendGameChat, sendIngameChat, sendPrivateMessage,
   watchLobbyChat, watchLobbyGameChat, watchGameChat,
-  getSlotPlayers, kickPlayer, getPlayerLobbyStatus, isInGame,
+  getSlotPlayers, getSpecPlayers, kickPlayer, getPlayerLobbyStatus, isInGame,
   waitForMapBans, stripClanTag,
 };

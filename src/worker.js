@@ -128,7 +128,10 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     throw err;
   }
 
-  // ── 7. !ready + countdown ────────────────────────────────
+  // ── 6b. Kick guests from player AND spectator slots ──────
+  await kickGuests(page, workerName, p1, p2);
+
+  // ── 7. !ready + !kick + countdown ──────────────────────────
   log('Asking for !ready...');
   const READY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
   await ph.sendGameChat(page, `${p1} vs ${p2} — type !ready to start`);
@@ -178,8 +181,23 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   // ── 9. Watch for result ──────────────────────────────────
   log('Watching for result...');
+  const gameStartTime = Date.now();
   const result = await watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToken);
-  log(`Result: winner=${result.winner} method=${result.method}`);
+  const gameDurationMs = Date.now() - gameStartTime;
+  log(`Result: winner=${result.winner} method=${result.method} duration=${Math.round(gameDurationMs/1000)}s`);
+
+  // ── 9b. Rehost check ───────────────────────────────────────
+  // Offer rehost if the game ended via disconnect (no gg) or lasted < 3 minutes
+  const needsRehostCheck = result.method !== 'cancelled'
+    && (result.method === 'disconnect' || gameDurationMs < 3 * 60_000);
+  if (needsRehostCheck) {
+    log('Game eligible for rehost — asking both players');
+    const rehostResult = await askForRehost(page, p1, p2, result);
+    if (rehostResult === 'rehost') {
+      log('Both players agreed to rehost');
+      result.rehost = true;
+    }
+  }
 
   // ── 10. Leave the game ────────────────────────────────────
   log('Leaving game...');
@@ -346,6 +364,7 @@ const { COMMANDS_HELP } = cfg;
 function waitForBothReady(page, p1, p2, timeoutMs) {
   return new Promise(resolve => {
     const ready = new Set();
+    const kickVotes = {};          // { targetLower: Set(['p1l','p2l']) }
     const p1l = p1.toLowerCase(), p2l = p2.toLowerCase();
     const start = Date.now();
     let done = false;
@@ -373,6 +392,45 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
         return;
       }
 
+      // !kick <player> — both tournament players must agree
+      if (mLower.startsWith('!kick ')) {
+        if (uLower !== p1l && uLower !== p2l) return;  // only tournament players can vote
+        const target = message.trim().replace(/^\[.*?\]\s*/, '').slice(6).trim();
+        const targetLower = target.toLowerCase();
+        // Cannot kick a tournament participant or the bot itself
+        if (targetLower === p1l || targetLower === p2l) {
+          await ph.sendGameChat(page, `❌ You cannot kick a tournament player.`).catch(() => {});
+          return;
+        }
+
+        if (!kickVotes[targetLower]) kickVotes[targetLower] = new Set();
+        kickVotes[targetLower].add(uLower);
+
+        if (kickVotes[targetLower].size >= 2) {
+          // Both players agreed — kick the target
+          await ph.sendGameChat(page, `⚠️ Both players voted to kick "${target}". Removing...`).catch(() => {});
+          try {
+            const playerSlots = await ph.getSlotPlayers(page);
+            const specSlots   = await ph.getSpecPlayers(page);
+            const allSlots    = [...playerSlots, ...specSlots];
+            const slot = allSlots.find(s => ph.stripClanTag(s.name).toLowerCase() === targetLower);
+            if (slot && slot.removeBtn) {
+              await ph.kickPlayer(page, slot.removeBtn);
+              await ph.sendGameChat(page, `✅ "${target}" has been kicked.`).catch(() => {});
+            } else {
+              await ph.sendGameChat(page, `⚠️ Could not find "${target}" in the lobby.`).catch(() => {});
+            }
+          } catch (e) {
+            await ph.sendGameChat(page, `⚠️ Kick failed: ${e.message}`).catch(() => {});
+          }
+          delete kickVotes[targetLower];
+        } else {
+          const who = uLower === p1l ? p1 : p2;
+          await ph.sendGameChat(page, `🗳️ ${who} wants to kick "${target}". Other player type !kick ${target} to confirm.`).catch(() => {});
+        }
+        return;
+      }
+
       // !ready
       if (mLower.includes('!ready')) {
         if (uLower === p1l) ready.add(p1l);
@@ -389,6 +447,97 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
         resolve(ready.size >= 2);
       }
     }, 500);
+  });
+}
+
+// ── Kick guest accounts from player and spectator slots ────
+async function kickGuests(page, workerName, p1, p2) {
+  const log = (msg) => console.log(`  [${workerName}] ${msg}`);
+  const expected = new Set([p1.toLowerCase(), p2.toLowerCase(), workerName.toLowerCase()]);
+
+  try {
+    const playerSlots = await ph.getSlotPlayers(page);
+    const specSlots   = await ph.getSpecPlayers(page);
+    const allSlots    = [...playerSlots, ...specSlots];
+
+    const guests = allSlots.filter(s => {
+      const clean = ph.stripClanTag(s.name).toLowerCase();
+      return /^guest_/i.test(clean) && !expected.has(clean);
+    });
+
+    if (guests.length === 0) return;
+
+    // Warn first
+    await ph.sendGameChat(page,
+      `⚠️ Guests detected: ${guests.map(g => g.name).join(', ')} — you will be kicked in 5 seconds. Please leave.`
+    );
+    await page.waitForTimeout(5000);
+
+    // Kick them
+    for (const g of guests) {
+      if (g.removeBtn) {
+        await ph.kickPlayer(page, g.removeBtn).catch(() => {});
+        log(`Kicked guest: ${g.name}`);
+      }
+    }
+  } catch (e) {
+    log(`Guest kick check failed: ${e.message}`);
+  }
+}
+
+// ── Ask both players for !rehost after a suspect result ────
+// Returns 'rehost' if both agree within 60s, otherwise 'confirm'
+async function askForRehost(page, p1, p2, result) {
+  const reason = result.method === 'disconnect'
+    ? `${result.loser} disconnected`
+    : 'Game ended in under 3 minutes';
+
+  await ph.sendIngameChat(page,
+    `⚠️ ${reason}. Both players can type !rehost within 60 seconds to replay this game.`
+  ).catch(() => {});
+
+  return new Promise(resolve => {
+    const rehosts = new Set();
+    const p1l = p1.toLowerCase(), p2l = p2.toLowerCase();
+    let done = false;
+
+    const stopChat = ph.watchGameChat(page, (line) => {
+      if (done || !line.trim()) return;
+      const colonIdx = line.indexOf(':');
+      if (colonIdx < 0) return;
+      const sender = ph.stripClanTag(line.slice(0, colonIdx).trim()).toLowerCase();
+      const rest   = line.slice(colonIdx + 1).trim();
+      const bracketIdx = rest.lastIndexOf('] ');
+      const msgBody = (bracketIdx >= 0 ? rest.slice(bracketIdx + 2) : rest).trim().toLowerCase();
+
+      if (msgBody === '!rehost') {
+        if (sender === p1l) rehosts.add(p1l);
+        if (sender === p2l) rehosts.add(p2l);
+
+        if (rehosts.size === 1) {
+          const who = sender === p1l ? p1 : p2;
+          ph.sendIngameChat(page, `✅ ${who} wants a rehost. Waiting for the other player to type !rehost...`).catch(() => {});
+        }
+
+        if (rehosts.size >= 2) {
+          done = true;
+          stopChat();
+          clearTimeout(timer);
+          ph.sendIngameChat(page, '🔄 Both players agreed — rehosting!').catch(() => {});
+          resolve('rehost');
+        }
+      }
+    });
+
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      stopChat();
+      if (rehosts.size > 0) {
+        ph.sendIngameChat(page, '⏰ Rehost timer expired — only one player requested. Result stands.').catch(() => {});
+      }
+      resolve('confirm');
+    }, 60_000);
   });
 }
 
@@ -576,8 +725,6 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
     await ph.sendLobbyChat(page,
       `📍 MAP BAN — ${p1} vs ${p2} | Pool: ${poolStr} | Each player types !ban <mapname>. You have 3 minutes.`
     );
-    await ph.sendPrivateMessage(page, p1, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`).catch(() => {});
-    await ph.sendPrivateMessage(page, p2, `🗺️ MAP BAN: Pool is ${poolStr}. Type !ban <mapname> in lobby chat.`).catch(() => {});
 
     const banResult = await ph.waitForMapBans(
       page, p1, p2, mapPool, cfg.banTimeoutMs || 3 * 60_000,
@@ -638,6 +785,13 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
     }
 
     if (result.method === 'cancelled') return { winner: p1, loser: p2, method: 'cancelled', wins };
+
+    // Rehost: replay the same game (don't count this result)
+    if (result.rehost) {
+      log('Rehosting game ' + gameNum + ' — result discarded');
+      gameNum--; // replay same game number
+      continue;
+    }
 
     wins[result.winner]++;
     log(`Game ${gameNum}: ${result.winner} wins — series ${p1}:${wins[p1]} ${p2}:${wins[p2]}`);

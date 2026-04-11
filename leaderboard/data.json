@@ -1,13 +1,13 @@
 {
   "players": {
     "Haffey": {
-      "wins": 3,
+      "wins": 5,
       "losses": 0,
-      "titles": 1,
-      "top3": 1,
-      "matches": 3,
-      "points": 10,
-      "gamesPlayed": ["t_20260408"]
+      "titles": 2,
+      "top3": 2,
+      "matches": 5,
+      "points": 20,
+      "gamesPlayed": ["t_20260408", "t_20260411"]
     },
     "itzJ": {
       "wins": 2,
@@ -35,6 +35,51 @@
       "matches": 2,
       "points": 1,
       "gamesPlayed": ["t_20260408"]
+    },
+    "icomefromsc": {
+      "wins": 2,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 3,
+      "points": 5,
+      "gamesPlayed": ["t_20260411"]
+    },
+    "ConsciouslyEating": {
+      "wins": 1,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 2,
+      "points": 2,
+      "gamesPlayed": ["t_20260411"]
+    },
+    "Xizun": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": ["t_20260411"]
+    },
+    "TheDarkRealm": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": ["t_20260411"]
+    },
+    "Highdra_x": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": ["t_20260411"]
     }
   },
   "tournaments": [
@@ -81,7 +126,44 @@
         "champion": "Haffey"
       },
       "replayDir": null
+    },
+    {
+      "id": "t_20260411",
+      "name": "Tournament 11/04/2026",
+      "format": "single_elimination",
+      "date": 1775934000000,
+      "champion": "Haffey",
+      "second": "icomefromsc",
+      "third": "ConsciouslyEating",
+      "players": ["Xizun", "ConsciouslyEating", "TheDarkRealm", "icomefromsc", "Highdra_x", "Haffey"],
+      "matchLog": [
+        { "matchId": "wb_r1_m1", "round": "WB R1", "p1": "Xizun",              "p2": "ConsciouslyEating", "winner": "ConsciouslyEating", "loser": "Xizun",              "method": "series" },
+        { "matchId": "wb_r1_m2", "round": "WB R1", "p1": "TheDarkRealm",       "p2": "icomefromsc",       "winner": "icomefromsc",        "loser": "TheDarkRealm",       "method": "series" },
+        { "matchId": "wb_r1_m3", "round": "WB R1", "p1": "Highdra_x",          "p2": "Haffey",            "winner": "Haffey",             "loser": "Highdra_x",          "method": "series" },
+        { "matchId": "wb_r2_m1", "round": "WB R2", "p1": "ConsciouslyEating",  "p2": "icomefromsc",       "winner": "icomefromsc",        "loser": "ConsciouslyEating",  "method": "series" },
+        { "matchId": "wb_r3_m1", "round": "WB R3", "p1": "icomefromsc",        "p2": "Haffey",            "winner": "Haffey",             "loser": "icomefromsc",        "method": "series" }
+      ],
+      "bracket": {
+        "format": "single_elimination",
+        "wb": [
+          [
+            { "id": "wb_r1_m1", "p1": "Xizun",        "p2": "ConsciouslyEating", "winner": "ConsciouslyEating", "loser": "Xizun",        "bracket": "W", "roundIdx": 0, "matchIdx": 0 },
+            { "id": "wb_r1_m2", "p1": "TheDarkRealm",  "p2": "icomefromsc",       "winner": "icomefromsc",        "loser": "TheDarkRealm", "bracket": "W", "roundIdx": 0, "matchIdx": 1 },
+            { "id": "wb_r1_m3", "p1": "Highdra_x",     "p2": "Haffey",            "winner": "Haffey",             "loser": "Highdra_x",    "bracket": "W", "roundIdx": 0, "matchIdx": 2 }
+          ],
+          [
+            { "id": "wb_r2_m1", "p1": "ConsciouslyEating", "p2": "icomefromsc", "winner": "icomefromsc", "loser": "ConsciouslyEating", "bracket": "W", "roundIdx": 1, "matchIdx": 0 },
+            { "id": "wb_r2_m2", "p1": "Haffey",            "p2": null,          "winner": "Haffey",      "loser": null,                "bracket": "W", "roundIdx": 1, "matchIdx": 1 }
+          ],
+          [
+            { "id": "wb_r3_m1", "p1": "icomefromsc", "p2": "Haffey", "winner": "Haffey", "loser": "icomefromsc", "bracket": "W", "roundIdx": 2, "matchIdx": 0 }
+          ]
+        ],
+        "eliminated": ["Xizun", "TheDarkRealm", "Highdra_x", "ConsciouslyEating", "icomefromsc"],
+        "champion": "Haffey"
+      },
+      "replayDir": null
     }
   ],
-  "updatedAt": 1775674800000
+  "updatedAt": 1775934000000
 }

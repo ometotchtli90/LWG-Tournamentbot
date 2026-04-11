@@ -4,6 +4,8 @@ const COMMANDS_HELP =
   '📋 Commands: ' +
   '!ready — confirm you are ready to start | ' +
   '!forfeit — forfeit this match (you lose) | ' +
+  '!rehost — request a rehost (both players must agree) | ' +
+  '!kick <player> — vote to kick a player (both must agree) | ' +
   '!leave — remove yourself from signup (signup phase only) | ' +
   '!commands — show this list';
 
