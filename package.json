@@ -12,6 +12,9 @@
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
+    "brackets-manager": "^1.9.1",
+    "brackets-memory-db": "^1.0.5",
+    "brackets-model": "^1.6.2",
     "express": "^4.18.2",
     "node-schedule": "^2.1.1",
     "playwright": "1.59.1",

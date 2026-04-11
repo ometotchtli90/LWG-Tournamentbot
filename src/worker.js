@@ -20,6 +20,37 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   // ── 1. Click Create/Play button ─────────────────────────
   log('Clicking Create Game...');
+
+  // Recovery: if we're still stuck on a stats screen or in-game menu, clear it first
+  try {
+    const stuck = await page.evaluate(() => {
+      // Stats/results screen still open
+      if (document.getElementById('statisticsWindow')?.offsetParent !== null) return 'stats';
+      // In-game menu still open
+      if (document.getElementById('optionsWindow')?.offsetParent !== null) return 'options';
+      // Still inside a game lobby (spectator)
+      if (document.getElementById('ingameMenuButton')?.offsetParent !== null) return 'ingame';
+      return null;
+    });
+    if (stuck === 'stats') {
+      log('Recovery: stats screen still open — closing');
+      const closeBtn = await page.$('#statisticsWindow button.closeButton');
+      if (closeBtn) { await closeBtn.click(); await page.waitForTimeout(1000); }
+    } else if (stuck === 'options') {
+      log('Recovery: options window open — pressing Escape');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(800);
+    } else if (stuck === 'ingame') {
+      log('Recovery: still in-game — quitting via menu');
+      await page.click('#ingameMenuButton').catch(() => {});
+      await page.waitForTimeout(600);
+      await page.click('#optionsQuitButton').catch(() => {});
+      await page.waitForTimeout(1500);
+      const closeBtn = await page.$('#statisticsWindow button.closeButton');
+      if (closeBtn) { await closeBtn.click(); await page.waitForTimeout(800); }
+    }
+  } catch (_) {}
+
   // Wait up to 30s for the button to be visible (worker may be returning from a previous game)
   await page.waitForSelector('#lobbyCreateButton:not([disabled])', { timeout: 30000 });
   await page.waitForFunction(() => {
@@ -124,12 +155,18 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     await page.waitForTimeout(1000);
   }
   await ph.sendGameChat(page, 'FIGHT!');
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(1200);
 
   // ── 8. Start ─────────────────────────────────────────────
   log('Starting game...');
-  await page.waitForSelector('#startButton', { timeout: 5000 });
-  await page.click('#startButton');
+  // Blur the chat input so it doesn't intercept the start button click
+  await page.evaluate(() => {
+    const input = document.getElementById('lobbyGameChatInput');
+    if (input) input.blur();
+  });
+  await page.waitForTimeout(300);
+  await page.waitForSelector('#startButton:not([disabled])', { timeout: 10000 });
+  await page.click('#startButton', { force: true });
   await page.waitForTimeout(2000);
 
   status('game_started');
@@ -193,12 +230,17 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     }
 
     // ── Close stats screen ────────────────────────────────
-    const closeBtn = await page.$('#statisticsWindow button.closeButton');
-    if (closeBtn) {
-      await closeBtn.click();
-      log('Stats screen closed.');
-      await page.waitForTimeout(800);
+    // Retry up to 5 times — the button may take a moment to become clickable
+    let statsClosed = false;
+    for (let attempt = 0; attempt < 5 && !statsClosed; attempt++) {
+      await page.waitForTimeout(400);
+      try {
+        const closeBtn = await page.$('#statisticsWindow button.closeButton');
+        if (closeBtn) { await closeBtn.click(); statsClosed = true; }
+      } catch (_) {}
     }
+    if (statsClosed) { log('Stats screen closed.'); await page.waitForTimeout(600); }
+    else              { log('Could not close stats screen — proceeding anyway.'); }
   } catch (_) {
     log('No stats screen found, continuing...');
   }

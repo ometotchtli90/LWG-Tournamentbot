@@ -940,8 +940,7 @@ async function overrideResult(matchId, newWinner) {
       if (lm.p1 === oldLoser) lm.p1 = null;
       if (lm.p2 === oldLoser) lm.p2 = null;
     }
-    // Remove from lbDropQueue if still pending
-    state.bracket.lbDropQueue = (state.bracket.lbDropQueue || []).filter(d => d.loser !== oldLoser);
+    // (lbDropQueue no longer used in BYE-free bracket — no cleanup needed)
   }
 
   // Remove old loser from eliminated list, add new loser
