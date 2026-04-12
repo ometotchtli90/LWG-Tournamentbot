@@ -61,7 +61,7 @@
     background: var(--navy3);
     border-bottom: 3px solid var(--border2);
     padding: 0;
-    height: 98px;
+    height: 48px;
     display: flex;
     align-items: stretch;
     flex-shrink: 0;
@@ -81,24 +81,31 @@
     text-shadow: 2px 2px 0 rgba(0,0,0,.8);
     margin-right: 0;
   }
+  .nav-group {
+    display: flex;
+    flex: 1;
+    justify-content: center;
+  }
   .nav-btn {
     font-family: var(--pixel);
     font-size: 9px;
     color: var(--blue-dim);
-    padding: 0 18px;
+    padding: 0 28px;
     border: none;
     background: transparent;
     cursor: pointer;
     display: flex;
     align-items: center;
+    justify-content: center;
+    flex: 1;
     border-right: 1px solid var(--border);
     transition: background .1s, color .1s;
     letter-spacing: .03em;
     height: 100%;
   }
+  .nav-btn:last-child { border-right: none; }
   .nav-btn:hover { background: var(--navy4); color: var(--white); }
   .nav-btn.active { background: var(--navy4); color: var(--gold); border-bottom: 3px solid var(--gold); margin-bottom: -3px; }
-  .spacer { flex: 1; }
 
   #phaseTag {
     font-family: var(--pixel);
@@ -427,7 +434,7 @@
   #topBar > .tpanel {
     flex: 1;
     min-width: 180px;
-    max-height: 260px;
+    max-height: 340px;
     overflow-y: auto;
     background: var(--navy);
     padding: 10px;
@@ -591,10 +598,11 @@
 <!-- ── Header ─────────────────────────────────────────────── -->
 <header>
   <span class="logo">LWG Tournament Bot</span>
-  <button class="nav-btn active" id="navTournament" onclick="showScreen('tournament')">Tournament</button>
-  <button class="nav-btn"        id="navSchedule"   onclick="showScreen('schedule')">📅 Schedule</button>
-  <button class="nav-btn"        id="navSettings"   onclick="showScreen('settings')">⚙ Settings</button>
-  <span class="spacer"></span>
+  <div class="nav-group">
+    <button class="nav-btn active" id="navTournament" onclick="showScreen('tournament')">Tournament</button>
+    <button class="nav-btn"        id="navSchedule"   onclick="showScreen('schedule')">📅 Schedule</button>
+    <button class="nav-btn"        id="navSettings"   onclick="showScreen('settings')">⚙ Settings</button>
+  </div>
   <span id="phaseTag">IDLE</span>
   <div id="connPill"><div id="connDot"></div><span id="connLabel">Connecting…</span></div>
 </header>
