@@ -96,6 +96,10 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   const specStart = Date.now();
   let specClicked = false;
   while (Date.now() - specStart < 60000) {
+    if (cancelToken?.cancelled) {
+      log('Cancel received — aborting spectate wait');
+      throw new Error('cancelled');
+    }
     const btn = await page.evaluate(() => {
       const byId = document.getElementById('moveMeToSpecBtn');
       if (byId && byId.offsetParent !== null) return 'found';

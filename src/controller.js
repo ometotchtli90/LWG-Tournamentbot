@@ -67,6 +67,17 @@ function emit(type, payload = {}) {
   if (_broadcast) _broadcast(entry);
 }
 
+// ── Pipe console.log to dashboard event log ──────────────
+const _origLog = console.log.bind(console);
+console.log = (...args) => {
+  _origLog(...args);
+  const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  // Only forward worker/controller lines (prefixed with [ )
+  if (_broadcast && msg.includes('[')) {
+    _broadcast({ type: 'worker_log', message: msg.trim(), ts: Date.now() });
+  }
+};
+
 // ── Shared status poller ──────────────────────────────────
 // Reads the full #playersListOnline DOM once every 1.5s on the controller page.
 // All active match monitors subscribe to receive the status map — no per-match polling.

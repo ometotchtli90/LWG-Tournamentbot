@@ -345,6 +345,7 @@
   .log-item.error  { border-color: var(--red);  background: rgba(255,68,68,.06); }
   .log-item.phase  { border-color: var(--border-hi); }
   .log-item.player { border-color: var(--green); }
+  .log-item.wlog   { border-color: var(--blue-dim); color: var(--blue-dim); font-size: 7px; }
   .ts { color: var(--blue-dim); font-size: 8px; margin-right: 5px; }
 
   /* ── Champion banner ──────────────────────── */
@@ -1535,12 +1536,13 @@ function renderActiveMatches() {
 
 function renderLog() {
   const el = document.getElementById('logList');
-  const items = (S.log || []).slice().reverse().slice(0, 80);
+  const items = (S.log || []).slice().reverse().slice(0, 200);
   el.innerHTML = items.map(e => {
     const cls = e.type === 'match_result' ? 'result'
               : (e.type === 'error' || e.type === 'match_error') ? 'error'
               : e.type === 'phase'  ? 'phase'
-              : e.type === 'player_joined' ? 'player' : '';
+              : e.type === 'player_joined' ? 'player'
+              : e.type === 'worker_log' ? 'wlog' : '';
     const time = new Date(e.ts).toLocaleTimeString();
     return `<li class="log-item ${cls}"><span class="ts">${time}</span>${fmtLog(e)}</li>`;
   }).join('');
@@ -1560,6 +1562,7 @@ function fmtLog(e) {
     case 'error':         return `⚠ ${e.msg}`;
     case 'chat_out':      return `→ ${e.text}`;
     case 'reset':         return 'Tournament reset';
+    case 'worker_log':    return e.message;
     default:              return JSON.stringify(e).slice(0, 90);
   }
 }
