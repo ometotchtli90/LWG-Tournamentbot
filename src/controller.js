@@ -323,6 +323,16 @@ async function buildTournament() {
   // Generate a unique tournament ID
   state.tournamentId = `T-${Date.now()}`;
 
+  // Lock map pool for the entire tournament — random 5 if pool is larger
+  const fmtS    = (cfg.formatSettings || {})[state.format] || {};
+  const fullPool = fmtS.mapPool && fmtS.mapPool.length ? fmtS.mapPool : [cfg.mapName];
+  const bestOfS  = fmtS.bestOf || 1;
+  if (bestOfS > 1 && fullPool.length > 5) {
+    state.mapPool = [...fullPool].sort(() => Math.random() - 0.5).slice(0, 5);
+  } else {
+    state.mapPool = [...fullPool];
+  }
+
   switch (state.format) {
     case 'double_elimination':
       state.bracket = B.buildDoubleElim(state.players);
@@ -338,6 +348,9 @@ async function buildTournament() {
   emit('bracket', { bracket: state.bracket });
 
   await chat(`🏆 Bracket ready! ${state.players.length} players · ${state.format.replace(/_/g,' ')}`);
+  if (state.mapPool.length > 1) {
+    await chat(`🗺️ Map pool: ${state.mapPool.join(', ')}`);
+  }
 
   // Push to leaderboard VPS
   lb.tournamentStart({
@@ -510,7 +523,7 @@ function startMatch(match, worker, gameName) {
 
   // Determine series settings from per-format config
   const fmtSettings = (cfg.formatSettings || {})[state.format] || {};
-  const mapPool     = fmtSettings.mapPool && fmtSettings.mapPool.length ? fmtSettings.mapPool : [cfg.mapName];
+  const mapPool     = state.mapPool || (fmtSettings.mapPool && fmtSettings.mapPool.length ? fmtSettings.mapPool : [cfg.mapName]);
   const bestOf      = fmtSettings.bestOf  || 1;
 
   workerMod.hostSeries(

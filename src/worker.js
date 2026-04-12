@@ -97,7 +97,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   // ── 5. Wait for spectate button then click ───────────────
   log('Waiting for spectate button...');
   try {
-    await page.waitForSelector('#moveMeToSpecBtn', { timeout: 15000 });
+    await page.waitForSelector('#moveMeToSpecBtn', { timeout: 20000 });
     await page.click('#moveMeToSpecBtn');
     log('Spectating ✓');
   } catch (_) {
