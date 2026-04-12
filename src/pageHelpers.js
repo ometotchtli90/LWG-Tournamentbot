@@ -54,7 +54,7 @@ async function dismissPopups(page) {
       // Click the X close button inside #infoWindow
       const closeBtn = await infoWindow.$('button.closeButton');
       if (closeBtn) {
-        await closeBtn.click();
+        await closeBtn.evaluate(el => el.click());
         console.log('    Closed Patreon popup.');
         await page.waitForTimeout(400);
       }
@@ -67,7 +67,7 @@ async function dismissPopups(page) {
     for (const btn of remaining) {
       const visible = await btn.isVisible().catch(() => false);
       if (visible) {
-        await btn.click().catch(() => {});
+        await btn.evaluate(el => el.click()).catch(() => {});
         await page.waitForTimeout(200);
       }
     }
@@ -85,7 +85,10 @@ async function login(page, username, password) {
   await page.waitForSelector('#loginPromptButton', { timeout: 10000 });
   // force:true bypasses Playwright's interception check — needed because changelogDiv
   // may still be in the DOM (even if hidden) and Playwright considers it an interceptor.
-  await page.click('#loginPromptButton', { force: true });
+  await page.evaluate(() => {
+    const btn = document.getElementById('loginPromptButton');
+    if (btn) btn.click();
+  });
 
   console.log(`    [${username}] Waiting for login form...`);
   await page.waitForSelector('#loginWindowUsername', { timeout: 10000 });

@@ -3,6 +3,14 @@
 const cfg = require('./config');
 const ph  = require('./pageHelpers');
 
+// ── JS click helper — bypasses overlay / pointer-event interception ──
+async function jsClick(page, selector) {
+  await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (el) el.click();
+  }, selector);
+}
+
 // ── Host a single tournament match ────────────────────────
 // Returns { winner, loser, method } or throws on fatal error.
 
@@ -34,20 +42,20 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     });
     if (stuck === 'stats') {
       log('Recovery: stats screen still open — closing');
-      const closeBtn = await page.$('#statisticsWindow button.closeButton');
-      if (closeBtn) { await closeBtn.click(); await page.waitForTimeout(1000); }
+      await jsClick(page, '#statisticsWindow button.closeButton');
+      await page.waitForTimeout(1000);
     } else if (stuck === 'options') {
       log('Recovery: options window open — pressing Escape');
       await page.keyboard.press('Escape');
       await page.waitForTimeout(800);
     } else if (stuck === 'ingame') {
       log('Recovery: still in-game — quitting via menu');
-      await page.click('#ingameMenuButton').catch(() => {});
+      await jsClick(page, '#ingameMenuButton');
       await page.waitForTimeout(600);
-      await page.click('#optionsQuitButton').catch(() => {});
+      await jsClick(page, '#optionsQuitButton');
       await page.waitForTimeout(1500);
-      const closeBtn = await page.$('#statisticsWindow button.closeButton');
-      if (closeBtn) { await closeBtn.click(); await page.waitForTimeout(800); }
+      await jsClick(page, '#statisticsWindow button.closeButton');
+      await page.waitForTimeout(800);
     }
   } catch (_) {}
 
@@ -59,7 +67,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     const r = btn.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && window.getComputedStyle(btn).display !== 'none';
   }, { timeout: 30000 });
-  await page.click('#lobbyCreateButton');
+  await jsClick(page, '#lobbyCreateButton');
   await page.waitForTimeout(1500);
 
   // ── 2. Search for map ────────────────────────────────────
@@ -85,13 +93,14 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
       return mapName === name;
     }) || null;
   }, cfg.mapName, { timeout: 8000 });
-  await mapBtn.click();
+  await mapBtn.evaluate(el => el.click());
   await page.waitForTimeout(1500);
 
   // ── 4. (no confirm step — map click goes straight to game lobby) ──
 
   // ── 5. Wait for spectate button then click ───────────────
   // Game lobby can take a while to load; wait up to 60s, polling every 2s.
+  // Uses JS .click() to bypass any overlay elements intercepting pointer events.
   log('Waiting for spectate button...');
   const specStart = Date.now();
   let specClicked = false;
@@ -100,27 +109,17 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
       log('Cancel received — aborting spectate wait');
       throw new Error('cancelled');
     }
-    const btn = await page.evaluate(() => {
+    const clicked = await page.evaluate(() => {
       const byId = document.getElementById('moveMeToSpecBtn');
-      if (byId && byId.offsetParent !== null) return 'found';
-      const btns = [...document.querySelectorAll('button')];
-      if (btns.find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null)) return 'found';
-      return null;
+      if (byId && byId.offsetParent !== null) { byId.click(); return true; }
+      const btn = [...document.querySelectorAll('button')].find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null);
+      if (btn) { btn.click(); return true; }
+      return false;
     });
-    if (btn === 'found') {
-      try {
-        const handle = await page.evaluateHandle(() => {
-          const byId = document.getElementById('moveMeToSpecBtn');
-          if (byId && byId.offsetParent !== null) return byId;
-          return [...document.querySelectorAll('button')].find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null) || null;
-        });
-        await handle.click();
-        specClicked = true;
-        log('Spectating ✓');
-        break;
-      } catch (e) {
-        log(`Spectate click failed, retrying... (${e.message})`);
-      }
+    if (clicked) {
+      specClicked = true;
+      log('Spectating ✓');
+      break;
     }
     await page.waitForTimeout(2000);
   }
@@ -138,11 +137,11 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     // Leave the game lobby via the Back button in #gameLobbyWindow
     try {
       await page.waitForSelector('#gameLobbyWindow #backButton', { timeout: 5000 });
-      await page.click('#gameLobbyWindow #backButton');
+      await jsClick(page, '#gameLobbyWindow #backButton');
       await page.waitForTimeout(1000);
     } catch (_) {
       // Fallback: try any backButton
-      try { await page.click('#backButton'); await page.waitForTimeout(1000); } catch (_) {}
+      try { await jsClick(page, '#backButton'); await page.waitForTimeout(1000); } catch (_) {}
     }
 
     // Throw a structured error so controller can handle each scenario
@@ -166,8 +165,8 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     const forfeiter = readyResult.forfeit;
     await ph.sendGameChat(page, `🏳️ ${forfeiter} has forfeited. Match cancelled.`);
     // Leave the lobby
-    try { await page.click('#gameLobbyWindow #backButton'); await page.waitForTimeout(1000); } catch (_) {
-      try { await page.click('#backButton'); await page.waitForTimeout(1000); } catch (_) {}
+    try { await jsClick(page, '#gameLobbyWindow #backButton'); await page.waitForTimeout(1000); } catch (_) {
+      try { await jsClick(page, '#backButton'); await page.waitForTimeout(1000); } catch (_) {}
     }
     const err = new Error('forfeit');
     err.forfeiter = forfeiter;
@@ -193,7 +192,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   });
   await page.waitForTimeout(300);
   await page.waitForSelector('#startButton:not([disabled])', { timeout: 10000 });
-  await page.click('#startButton', { force: true });
+  await jsClick(page, '#startButton');
   await page.waitForTimeout(2000);
 
   status('game_started');
@@ -228,16 +227,16 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   try {
     // Click the menu/options button to open the options window
     await page.waitForSelector('#ingameMenuButton', { timeout: 10000 });
-    await page.click('#ingameMenuButton');
+    await jsClick(page, '#ingameMenuButton');
     await page.waitForTimeout(800);
     // Click the Quit button inside the options window
     await page.waitForSelector('#optionsQuitButton', { timeout: 5000 });
-    await page.click('#optionsQuitButton');
+    await jsClick(page, '#optionsQuitButton');
     await page.waitForTimeout(1500);
     log('Left game via optionsQuitButton.');
   } catch (_) {
     log('optionsQuitButton not found — trying backButton fallback');
-    try { await page.click('#backButton'); await page.waitForTimeout(1500); } catch (_) {}
+    try { await jsClick(page, '#backButton'); await page.waitForTimeout(1500); } catch (_) {}
   }
 
   // ── 11. Save replay then close stats screen ──────────────
@@ -259,7 +258,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
         // Set up download listener BEFORE clicking the button
         const downloadPromise = page.waitForEvent('download', { timeout: 10000 });
-        await replayBtn.click();
+        await replayBtn.evaluate(el => el.click());
         const download = await downloadPromise;
         await download.saveAs(savePath);
         log(`Replay saved: ${filename}`);
@@ -278,7 +277,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
       await page.waitForTimeout(400);
       try {
         const closeBtn = await page.$('#statisticsWindow button.closeButton');
-        if (closeBtn) { await closeBtn.click(); statsClosed = true; }
+        if (closeBtn) { await closeBtn.evaluate(el => el.click()); statsClosed = true; }
       } catch (_) {}
     }
     if (statsClosed) { log('Stats screen closed.'); await page.waitForTimeout(600); }
@@ -459,22 +458,14 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
       if (mLower === '!spec') {
         if (uLower === p1l || uLower === p2l) {
           await ph.sendGameChat(page, '🔄 Moving to spectator...').catch(() => {});
-          try {
-            const specBtn = await page.evaluateHandle(() => {
-              const byId = document.getElementById('moveMeToSpecBtn');
-              if (byId && byId.offsetParent !== null) return byId;
-              const btns = [...document.querySelectorAll('button')];
-              return btns.find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null) || null;
-            });
-            if (specBtn) {
-              await specBtn.click();
-              await ph.sendGameChat(page, '✅ Now spectating.').catch(() => {});
-            } else {
-              await ph.sendGameChat(page, '⚠️ Already spectating or button not found.').catch(() => {});
-            }
-          } catch (e) {
-            await ph.sendGameChat(page, `⚠️ Could not spectate: ${e.message}`).catch(() => {});
-          }
+          const clicked = await page.evaluate(() => {
+            const byId = document.getElementById('moveMeToSpecBtn');
+            if (byId && byId.offsetParent !== null) { byId.click(); return true; }
+            const btn = [...document.querySelectorAll('button')].find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null);
+            if (btn) { btn.click(); return true; }
+            return false;
+          }).catch(() => false);
+          await ph.sendGameChat(page, clicked ? '✅ Now spectating.' : '⚠️ Already spectating or button not found.').catch(() => {});
         }
         return;
       }
