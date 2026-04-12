@@ -621,7 +621,7 @@
     <!-- Tournament -->
     <div class="tpanel">
       <div class="card-title">Tournament</div>
-      <button class="btn btn-blue btn-full btn-sm" id="btnBoot" onclick="doBoot()">Launch Browsers</button>
+      <button class="btn btn-blue btn-full btn-sm" style="min-height:36px;" id="btnBoot" onclick="doBoot()">Launch Browsers</button>
       <div id="bootWarning" style="display:none;padding:5px 7px;background:#2d1a1a;border:1px solid var(--red);color:var(--red);font-size:8px;line-height:1.6;"></div>
       <div style="display:flex;flex-direction:column;gap:4px;">
         <button class="btn btn-full btn-sm" style="min-height:36px;background:#c05a00;color:#fff;border-color:#e06a00;" id="btnOpenSignupInstant" onclick="doOpenSignup('instant')" disabled>Open Signup — Start when full</button>
@@ -632,7 +632,7 @@
         <span id="signupTimerLabel" style="color:var(--gold);font-family:var(--pixel);font-size:13px;">2:00</span>
         <span style="color:var(--muted);font-size:8px;margin-left:4px;">left</span>
       </div>
-      <button class="btn btn-ghost btn-full btn-sm" id="btnCloseSignup" onclick="cmd('closeSignup')" disabled>⏹ Close Signup</button>
+      <button class="btn btn-ghost btn-full btn-sm" style="min-height:36px;" id="btnCloseSignup" onclick="cmd('closeSignup')" disabled>⏹ Close Signup</button>
       <div style="height:1px;background:var(--border);margin:2px 0;"></div>
       <button class="btn btn-full btn-sm" id="btnNewTourney" style="display:none;background:var(--green);color:#000;" onclick="doNewTournament()">▶ New Tournament</button>
       <button class="btn btn-full btn-sm" id="btnCancel" style="display:none;background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;" onclick="doReset()">✕ Cancel</button>
