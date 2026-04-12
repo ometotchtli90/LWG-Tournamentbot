@@ -92,16 +92,22 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   // Confirm if button exists
   const confirmBtn = await page.$('#createGameConfirmButton, #createGameBtn');
-  if (confirmBtn) { await confirmBtn.click(); await page.waitForTimeout(1500); }
+  if (confirmBtn) { await confirmBtn.click(); await page.waitForTimeout(3000); }
 
   // ── 5. Wait for spectate button then click ───────────────
   log('Waiting for spectate button...');
   try {
-    await page.waitForSelector('#moveMeToSpecBtn', { timeout: 20000 });
-    await page.click('#moveMeToSpecBtn');
+    // Try the id first, fall back to any button whose text contains "Spectate"
+    const specBtn = await page.waitForFunction(() => {
+      const byId = document.getElementById('moveMeToSpecBtn');
+      if (byId && byId.offsetParent !== null) return byId;
+      const btns = [...document.querySelectorAll('button')];
+      return btns.find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null) || null;
+    }, { timeout: 20000 });
+    await specBtn.click();
     log('Spectating ✓');
   } catch (_) {
-    throw new Error('moveMeToSpecBtn did not appear within 15s');
+    throw new Error('Spectate button did not appear within 20s');
   }
   await page.waitForTimeout(800);
 
@@ -427,6 +433,30 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
         } else {
           const who = uLower === p1l ? p1 : p2;
           await ph.sendGameChat(page, `🗳️ ${who} wants to kick "${target}". Other player type !kick ${target} to confirm.`).catch(() => {});
+        }
+        return;
+      }
+
+      // !spec — make the bot click the spectate button again
+      if (mLower === '!spec') {
+        if (uLower === p1l || uLower === p2l) {
+          await ph.sendGameChat(page, '🔄 Moving to spectator...').catch(() => {});
+          try {
+            const specBtn = await page.evaluateHandle(() => {
+              const byId = document.getElementById('moveMeToSpecBtn');
+              if (byId && byId.offsetParent !== null) return byId;
+              const btns = [...document.querySelectorAll('button')];
+              return btns.find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null) || null;
+            });
+            if (specBtn) {
+              await specBtn.click();
+              await ph.sendGameChat(page, '✅ Now spectating.').catch(() => {});
+            } else {
+              await ph.sendGameChat(page, '⚠️ Already spectating or button not found.').catch(() => {});
+            }
+          } catch (e) {
+            await ph.sendGameChat(page, `⚠️ Could not spectate: ${e.message}`).catch(() => {});
+          }
         }
         return;
       }

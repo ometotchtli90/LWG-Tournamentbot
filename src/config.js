@@ -6,6 +6,7 @@ const COMMANDS_HELP =
   '!forfeit — forfeit this match (you lose) | ' +
   '!rehost — request a rehost (both players must agree) | ' +
   '!kick <player> — vote to kick a player (both must agree) | ' +
+  '!spec — move the bot to spectator | ' +
   '!leave — remove yourself from signup (signup phase only) | ' +
   '!commands — show this list';
 
