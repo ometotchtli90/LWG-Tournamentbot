@@ -88,26 +88,40 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   await mapBtn.click();
   await page.waitForTimeout(1500);
 
-  // ── 4. (skipped — no game name/password needed, bot kicks wrong players) ──
-
-  // Confirm if button exists
-  const confirmBtn = await page.$('#createGameConfirmButton, #createGameBtn');
-  if (confirmBtn) { await confirmBtn.click(); await page.waitForTimeout(3000); }
+  // ── 4. (no confirm step — map click goes straight to game lobby) ──
 
   // ── 5. Wait for spectate button then click ───────────────
+  // Game lobby can take a while to load; wait up to 60s, polling every 2s.
   log('Waiting for spectate button...');
-  try {
-    // Try the id first, fall back to any button whose text contains "Spectate"
-    const specBtn = await page.waitForFunction(() => {
+  const specStart = Date.now();
+  let specClicked = false;
+  while (Date.now() - specStart < 60000) {
+    const btn = await page.evaluate(() => {
       const byId = document.getElementById('moveMeToSpecBtn');
-      if (byId && byId.offsetParent !== null) return byId;
+      if (byId && byId.offsetParent !== null) return 'found';
       const btns = [...document.querySelectorAll('button')];
-      return btns.find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null) || null;
-    }, { timeout: 20000 });
-    await specBtn.click();
-    log('Spectating ✓');
-  } catch (_) {
-    throw new Error('Spectate button did not appear within 20s');
+      if (btns.find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null)) return 'found';
+      return null;
+    });
+    if (btn === 'found') {
+      try {
+        const handle = await page.evaluateHandle(() => {
+          const byId = document.getElementById('moveMeToSpecBtn');
+          if (byId && byId.offsetParent !== null) return byId;
+          return [...document.querySelectorAll('button')].find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null) || null;
+        });
+        await handle.click();
+        specClicked = true;
+        log('Spectating ✓');
+        break;
+      } catch (e) {
+        log(`Spectate click failed, retrying... (${e.message})`);
+      }
+    }
+    await page.waitForTimeout(2000);
+  }
+  if (!specClicked) {
+    throw new Error('Spectate button did not appear within 60s');
   }
   await page.waitForTimeout(800);
 
@@ -778,6 +792,7 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
       await ph.sendLobbyChat(page, `✅ Bans done — ${p1} banned ${p1ban}, ${p2} banned ${p2ban} | Maps: ${mapsStr}`);
     }
     log(`Maps to play in order: ${mapsStr}`);
+    await page.waitForTimeout(3000);
   }
 
   // ── Series loop — each game plays the next map in sequence ──
