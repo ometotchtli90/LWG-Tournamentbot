@@ -1053,15 +1053,16 @@ async function doReset() {
   } catch (_) {}
 
   // 3. Tell all busy workers to leave their current game
+  const jsEval = (page, sel) => page.evaluate((s) => { const el = document.querySelector(s); if (el) el.click(); }, sel).catch(() => {});
   await Promise.all(state.workerPages.filter(w => w.busy).map(async w => {
     try {
-      // Try the in-game quit sequence first
-      await w.page.click('#ingameMenuButton').catch(() => {});
+      // Try the in-game quit sequence first (JS click bypasses overlay interception)
+      await jsEval(w.page, '#ingameMenuButton');
       await w.page.waitForTimeout(600);
-      await w.page.click('#optionsQuitButton').catch(() => {});
+      await jsEval(w.page, '#optionsQuitButton');
       await w.page.waitForTimeout(800);
       // Fallback: any visible backButton
-      await w.page.click('#backButton').catch(() => {});
+      await jsEval(w.page, '#backButton');
     } catch (_) {}
   }));
 

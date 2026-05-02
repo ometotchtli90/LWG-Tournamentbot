@@ -1,0 +1,264 @@
+{
+  "players": {
+    "ConsciouslyEating": {
+      "wins": 2,
+      "losses": 2,
+      "titles": 0,
+      "top3": 1,
+      "matches": 4,
+      "points": 5,
+      "gamesPlayed": [
+        "T-1777730400614",
+        "T-1777730400614"
+      ]
+    },
+    "Xab": {
+      "wins": 1,
+      "losses": 2,
+      "titles": 0,
+      "top3": 1,
+      "matches": 3,
+      "points": 2,
+      "gamesPlayed": [
+        "T-1777730400614",
+        "T-1777730400614"
+      ]
+    },
+    "DragonArcherZ": {
+      "wins": 3,
+      "losses": 0,
+      "titles": 1,
+      "top3": 1,
+      "matches": 3,
+      "points": 10,
+      "gamesPlayed": [
+        "T-1777730400614",
+        "T-1777730400614",
+        "T-1777730400614"
+      ]
+    },
+    "Highdra_x": {
+      "wins": 0,
+      "losses": 2,
+      "titles": 0,
+      "top3": 0,
+      "matches": 2,
+      "points": 1,
+      "gamesPlayed": [
+        "T-1777730400614"
+      ]
+    }
+  },
+  "tournaments": [
+    {
+      "id": "T-1777730400614",
+      "name": "Tournament 5/2/2026",
+      "format": "double_elimination",
+      "date": 1777737404954,
+      "champion": "DragonArcherZ",
+      "second": "ConsciouslyEating",
+      "third": "Xab",
+      "players": [
+        "Xab",
+        "ConsciouslyEating",
+        "Highdra_x",
+        "DragonArcherZ"
+      ],
+      "matchLog": [
+        {
+          "matchId": "W-0-1",
+          "round": "WB Round 1",
+          "p1": "ConsciouslyEating",
+          "p2": "Xab",
+          "winner": "ConsciouslyEating",
+          "loser": "Xab",
+          "method": "series"
+        },
+        {
+          "matchId": "W-0-0",
+          "round": "WB Round 1",
+          "p1": "DragonArcherZ",
+          "p2": "Highdra_x",
+          "winner": "DragonArcherZ",
+          "loser": "Highdra_x",
+          "method": "series"
+        },
+        {
+          "matchId": "L-0-0",
+          "round": "LB Round 1",
+          "p1": "Highdra_x",
+          "p2": "Xab",
+          "winner": "Xab",
+          "loser": "Highdra_x",
+          "method": "no_show"
+        },
+        {
+          "matchId": "W-1-0",
+          "round": "WB Round 2",
+          "p1": "DragonArcherZ",
+          "p2": "ConsciouslyEating",
+          "winner": "DragonArcherZ",
+          "loser": "ConsciouslyEating",
+          "method": "series"
+        },
+        {
+          "matchId": "L-1-0",
+          "round": "LB Round 2",
+          "p1": "Xab",
+          "p2": "ConsciouslyEating",
+          "winner": "ConsciouslyEating",
+          "loser": "Xab",
+          "method": "series"
+        },
+        {
+          "matchId": "GF-0-0",
+          "round": "Grand Final",
+          "p1": "DragonArcherZ",
+          "p2": "ConsciouslyEating",
+          "winner": "DragonArcherZ",
+          "loser": "ConsciouslyEating",
+          "method": "series"
+        }
+      ],
+      "replayDir": null,
+      "bracket": {
+        "format": "double_elimination",
+        "wb": [
+          [
+            {
+              "p1": "DragonArcherZ",
+              "p2": "Highdra_x",
+              "winner": "DragonArcherZ",
+              "loser": "Highdra_x",
+              "id": "W-0-0",
+              "bracket": "W",
+              "roundIdx": 0,
+              "matchIdx": 0,
+              "_winNext": {
+                "src": "wb",
+                "ri": 1,
+                "mi": 0,
+                "slot": "p1"
+              },
+              "_loseNext": {
+                "src": "lb",
+                "ri": 0,
+                "mi": 0,
+                "slot": "p1"
+              }
+            },
+            {
+              "p1": "ConsciouslyEating",
+              "p2": "Xab",
+              "winner": "ConsciouslyEating",
+              "loser": "Xab",
+              "id": "W-0-1",
+              "bracket": "W",
+              "roundIdx": 0,
+              "matchIdx": 1,
+              "_winNext": {
+                "src": "wb",
+                "ri": 1,
+                "mi": 0,
+                "slot": "p2"
+              },
+              "_loseNext": {
+                "src": "lb",
+                "ri": 0,
+                "mi": 0,
+                "slot": "p2"
+              }
+            }
+          ],
+          [
+            {
+              "p1": "DragonArcherZ",
+              "p2": "ConsciouslyEating",
+              "winner": "DragonArcherZ",
+              "loser": "ConsciouslyEating",
+              "id": "W-1-0",
+              "bracket": "W",
+              "roundIdx": 1,
+              "matchIdx": 0,
+              "_winNext": {
+                "src": "gf",
+                "ri": 0,
+                "mi": 0,
+                "slot": "p1"
+              },
+              "_loseNext": {
+                "src": "lb",
+                "ri": 1,
+                "mi": 0,
+                "slot": "p2"
+              }
+            }
+          ]
+        ],
+        "lb": [
+          [
+            {
+              "p1": "Highdra_x",
+              "p2": "Xab",
+              "winner": "Xab",
+              "loser": "Highdra_x",
+              "id": "L-0-0",
+              "bracket": "L",
+              "roundIdx": 0,
+              "matchIdx": 0,
+              "_winNext": {
+                "src": "lb",
+                "ri": 1,
+                "mi": 0,
+                "slot": "p1"
+              }
+            }
+          ],
+          [
+            {
+              "p1": "Xab",
+              "p2": "ConsciouslyEating",
+              "winner": "ConsciouslyEating",
+              "loser": "Xab",
+              "id": "L-1-0",
+              "bracket": "L",
+              "roundIdx": 1,
+              "matchIdx": 0,
+              "_winNext": {
+                "src": "gf",
+                "ri": 0,
+                "mi": 0,
+                "slot": "p2"
+              }
+            }
+          ]
+        ],
+        "gf": [
+          {
+            "p1": "DragonArcherZ",
+            "p2": "ConsciouslyEating",
+            "winner": "DragonArcherZ",
+            "loser": "ConsciouslyEating",
+            "id": "GF-0-0",
+            "bracket": "GF",
+            "roundIdx": 0,
+            "matchIdx": 0
+          }
+        ],
+        "eliminated": [
+          "Highdra_x",
+          "Highdra_x",
+          "Xab",
+          "ConsciouslyEating"
+        ],
+        "byeSeeds": [
+          "DragonArcherZ",
+          "Highdra_x",
+          "ConsciouslyEating",
+          "Xab"
+        ]
+      }
+    }
+  ],
+  "updatedAt": 1777737405063
+}

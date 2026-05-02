@@ -9,16 +9,12 @@ const PLACE_POINTS  = { 1: 10, 2: 5, 3: 2 };
 const DEFAULT_POINTS = 1; // participation — everyone who played
 
 // ── Data path helpers ─────────────────────────────────────
-function getDataDir() {
-  try {
-    const electron = require('electron');
-    const a = electron.app || (electron.remote && electron.remote.app);
-    if (a) return a.getPath('userData');
-  } catch (_) {}
-  return path.join(__dirname, '..');
+// Master file lives in /app/data/ which IS a persistent Coolify volume.
+// A web-served copy is kept in leaderboard/data.json (not persistent,
+// but synced from the master on every write and on server startup).
+function getLeaderboardPath() {
+  return path.join(__dirname, '..', 'data', 'leaderboard.json');
 }
-
-function getLeaderboardPath() { return path.join(getDataDir(), 'leaderboard.json'); }
 
 function loadData() {
   const p = getLeaderboardPath();
@@ -73,8 +69,8 @@ function recordTournament({ id, name, format, date, champion, second, third, bra
     players: players||[], matchLog: matchLog||[], replayDir: replayDir||null, bracket,
   });
 
-  saveData(data);
-  writeDataJson(data);
+  saveData(data);       // persists to data/leaderboard.json (persistent volume)
+  writeDataJson(data);  // syncs to leaderboard/data.json  (web-served copy)
   return data;
 }
 
@@ -790,8 +786,9 @@ function exportToFile(outputPath) {
 }
 
 // ── Write data.json to leaderboard folder ────────────────
-// Called automatically after recordTournament() so the Node.js
-// server always serves the latest leaderboard data at /data.json.
+// Keeps leaderboard/data.json (web-served copy) in sync with the
+// persistent master at data/leaderboard.json.
+// Called after every recordTournament() and on server startup.
 function writeDataJson(data) {
   try {
     const d = data || loadData();

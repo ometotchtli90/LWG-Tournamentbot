@@ -10,6 +10,7 @@ const fs       = require('fs');
 const { WebSocketServer } = require('ws');
 const controller = require('./controller');
 const scheduler  = require('./scheduler');
+const lbExport   = require('./leaderboardExport');
 
 const PORT         = process.env.PORT || 4321;
 const CONFIG_PATH  = path.join(__dirname, 'config.js');
@@ -26,6 +27,15 @@ function startServer() {
       console.log('Loaded config overrides:', overrides);
     }
   } catch (e) { console.warn('Config override load failed:', e.message); }
+
+  // ── Sync persistent leaderboard master → web-served copy ──
+  // data/leaderboard.json is in a Coolify persistent volume and survives
+  // container rebuilds. leaderboard/data.json is not — sync it on every
+  // startup so the public site always shows the latest data immediately.
+  try {
+    lbExport.writeDataJson();
+    console.log('  Leaderboard data synced to leaderboard/data.json');
+  } catch (e) { console.warn('  Leaderboard sync failed (no data yet?):', e.message); }
 
   const app    = express();
   const server = http.createServer(app);
@@ -210,6 +220,44 @@ function startServer() {
   scheduler.init(controller);
 
   server.listen(PORT, () => console.log(`\n🌐 Dashboard: http://localhost:${PORT}\n`));
+
+  // ── Graceful shutdown on Docker SIGTERM / Ctrl-C ─────────
+  // Without this, Chromium processes are left as orphans when the
+  // container stops, accumulating until they consume 100% CPU.
+  let shuttingDown = false;
+  async function gracefulShutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`\n[server] ${signal} received — shutting down gracefully...`);
+    try {
+      if (controller.isRunning && controller.isRunning()) {
+        await controller.shutdown();
+        console.log('[server] Playwright browsers closed.');
+      }
+    } catch (e) {
+      console.error('[server] Shutdown error:', e.message);
+    }
+    server.close(() => {
+      console.log('[server] HTTP server closed. Exiting.');
+      process.exit(0);
+    });
+    // Force-exit if graceful close takes > 5s
+    setTimeout(() => { console.error('[server] Force exit after 5s timeout.'); process.exit(1); }, 5000).unref();
+  }
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+  process.on('uncaughtException', async (err) => {
+    console.error('[server] Uncaught exception:', err);
+    await gracefulShutdown('uncaughtException').catch(() => {});
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    console.error('[server] Unhandled rejection:', reason);
+    // Don't exit — log only, to avoid killing the server on transient Playwright errors
+  });
 }
 
 module.exports = { startServer };
