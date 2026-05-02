@@ -29,13 +29,35 @@ function startServer() {
   } catch (e) { console.warn('Config override load failed:', e.message); }
 
   // ── Sync persistent leaderboard master → web-served copy ──
-  // data/leaderboard.json is in a Coolify persistent volume and survives
-  // container rebuilds. leaderboard/data.json is not — sync it on every
-  // startup so the public site always shows the latest data immediately.
+  // data/leaderboard.json  = persistent master (survives redeploys, in Coolify volume)
+  // leaderboard/data.json  = web-served copy  (baked into image, but NOT persistent)
+  //
+  // Problem: Coolify mounts /app/data from the host volume, hiding any files
+  // the image baked into /app/data. So on first deploy, the master doesn't
+  // exist yet even though data/leaderboard.json was committed to the repo.
+  //
+  // Solution: if the persistent master is missing, seed it from the baked-in
+  // leaderboard/data.json (which IS in the image). On subsequent deploys the
+  // master in the volume takes precedence and is synced back to the served copy.
   try {
+    const masterPath = path.join(__dirname, '..', 'data', 'leaderboard.json');
+    const imagePath  = path.join(__dirname, '..', 'leaderboard', 'data.json');
+
+    if (!fs.existsSync(masterPath)) {
+      // First run after deploy — seed persistent master from image copy
+      if (fs.existsSync(imagePath)) {
+        fs.mkdirSync(path.dirname(masterPath), { recursive: true });
+        fs.copyFileSync(imagePath, masterPath);
+        console.log('  Leaderboard master seeded from image leaderboard/data.json');
+      } else {
+        console.warn('  No leaderboard data found — starting fresh');
+      }
+    }
+
+    // Sync master → web-served copy (always, so the public site is up to date)
     lbExport.writeDataJson();
     console.log('  Leaderboard data synced to leaderboard/data.json');
-  } catch (e) { console.warn('  Leaderboard sync failed (no data yet?):', e.message); }
+  } catch (e) { console.warn('  Leaderboard sync failed:', e.message); }
 
   const app    = express();
   const server = http.createServer(app);
