@@ -125,11 +125,12 @@ async function triggerTournament(sched) {
 
   console.log(`[scheduler] Map pool (${picked.length}): ${picked.join(', ')}`);
 
-  // Apply picked maps to the live config (double_elimination is always used for scheduled runs)
-  if (!cfg.formatSettings)                                cfg.formatSettings = {};
-  if (!cfg.formatSettings.double_elimination)             cfg.formatSettings.double_elimination = {};
-  cfg.formatSettings.double_elimination.mapPool = picked;
-  cfg.bracketFormat = 'double_elimination';
+  // Apply picked maps to the live config using the schedule's chosen format
+  const format = sched.bracketFormat || 'double_elimination';
+  if (!cfg.formatSettings)          cfg.formatSettings = {};
+  if (!cfg.formatSettings[format])  cfg.formatSettings[format] = {};
+  cfg.formatSettings[format].mapPool = picked;
+  cfg.bracketFormat = format;
 
   // ── Apply per-schedule config overrides ───────────────────
   if (sched.signupOpenMins)  cfg.signupDurationMs = parseInt(sched.signupOpenMins)  * 60000;
@@ -150,8 +151,8 @@ async function triggerTournament(sched) {
       await controller.boot(accounts);
     }
 
-    // Open timed signup (uses signupDurationMs from config)
-    await controller.dashboardCommand('openSignup', ['double_elimination', 'timed']);
+    // Open timed signup with the configured format
+    await controller.dashboardCommand('openSignup', [format, 'timed']);
     console.log(`[scheduler] Signup opened for "${sched.name}".`);
   } catch (e) {
     console.error(`[scheduler] Error triggering "${sched.name}":`, e.message);

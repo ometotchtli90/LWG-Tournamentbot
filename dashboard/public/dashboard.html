@@ -850,7 +850,7 @@
 
   <div>
     <div class="settings-title">📅 Tournament Scheduler</div>
-    <div class="settings-sub">Tournaments always use Double Elimination. Maps are randomly drawn from your master pool each run.</div>
+    <div class="settings-sub">Maps are randomly drawn from your master pool each run. Format is configurable per schedule.</div>
   </div>
 
   <!-- Existing schedules list -->
@@ -874,6 +874,21 @@
       <div style="grid-column:1/-1;">
         <div class="field-row-label">Schedule Name</div>
         <input id="schName" type="text" placeholder="Weekly Sunday Tournament">
+      </div>
+
+      <!-- Bracket Format -->
+      <div style="grid-column:1/-1;">
+        <div class="field-row-label">Bracket Format</div>
+        <div style="display:flex;gap:20px;margin-top:5px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="radio" name="schFormat" id="schFmtDE" value="double_elimination" checked>
+            <span style="font-size:9px;color:var(--fg);">Double Elimination</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="radio" name="schFormat" id="schFmtSE" value="single_elimination">
+            <span style="font-size:9px;color:var(--fg);">Single Elimination</span>
+          </label>
+        </div>
       </div>
 
       <!-- Recurrence -->
@@ -1778,8 +1793,9 @@ async function reloadScheduleList() {
         s.recurrence === 'weekly' ? `Every ${days[s.dayOfWeek ?? 0]} at ${s.time}` :
         s.recurrence === 'custom' ? `Cron: ${s.cronExpr}` : s.recurrence;
       const tzLabel = s.timezone || 'UTC';
+      const fmtLabel = s.bracketFormat === 'single_elimination' ? 'SE' : 'DE';
       const mapsLine = Array.isArray(s.masterMapPool)
-        ? `${s.masterMapPool.length} maps · picks ${s.mapPoolSize || 5} · signup ${s.signupOpenMins || 10}min early · join ${s.joinWaitMins || 5}min · ban ${s.banTimeoutMins || 3}min · ${s.minPlayers || 4}–${s.maxPlayers || 16} players` : '';
+        ? `${fmtLabel} · ${s.masterMapPool.length} maps · picks ${s.mapPoolSize || 5} · signup ${s.signupOpenMins || 10}min early · join ${s.joinWaitMins || 5}min · ban ${s.banTimeoutMins || 3}min · ${s.minPlayers || 4}–${s.maxPlayers || 16} players` : '';
       const nextStr  = s.nextRun ? new Date(s.nextRun).toLocaleString() : '—';
       return `
       <div class="sched-row${s.enabled ? '' : ' disabled'}" id="srow-${s.id}">
@@ -1820,6 +1836,8 @@ async function addSchedule() {
   const name = document.getElementById('schName').value.trim() || 'Unnamed Schedule';
   const tz   = document.getElementById('schTimezone').value;
 
+  const bracketFormat = document.querySelector('input[name="schFormat"]:checked')?.value || 'double_elimination';
+
   const masterMaps = (document.getElementById('schMasterMaps').value || '')
     .split('\n').map(l => l.trim()).filter(Boolean);
   const poolSize = parseInt(document.getElementById('schPoolSize').value) || 5;
@@ -1831,6 +1849,7 @@ async function addSchedule() {
   const maxPlayers      = parseInt(document.getElementById('schMaxPlayers').value)      || 16;
 
   const sched = { name, recurrence: rec, timezone: tz,
+    bracketFormat,
     masterMapPool: masterMaps, mapPoolSize: poolSize,
     signupOpenMins, joinWaitMins, banTimeoutMins, minPlayers, maxPlayers,
     enabled: _schedNewEnabled };
