@@ -1,13 +1,13 @@
 {
   "players": {
     "Haffey": {
-      "wins": 5,
+      "wins": 8,
       "losses": 0,
-      "titles": 2,
-      "top3": 2,
-      "matches": 5,
-      "points": 20,
-      "gamesPlayed": ["t_20260408", "t_20260411"]
+      "titles": 3,
+      "top3": 3,
+      "matches": 8,
+      "points": 30,
+      "gamesPlayed": ["t_20260408", "t_20260411", "T-1778335200000"]
     },
     "itzJ": {
       "wins": 2,
@@ -82,13 +82,13 @@
       "gamesPlayed": ["t_20260411", "T-1777730400614"]
     },
     "Xab": {
-      "wins": 1,
-      "losses": 2,
+      "wins": 2,
+      "losses": 3,
       "titles": 0,
-      "top3": 1,
-      "matches": 3,
-      "points": 2,
-      "gamesPlayed": ["T-1777730400614"]
+      "top3": 2,
+      "matches": 5,
+      "points": 7,
+      "gamesPlayed": ["T-1777730400614", "T-1778335200000"]
     },
     "DragonArcherZ": {
       "wins": 3,
@@ -98,6 +98,33 @@
       "matches": 3,
       "points": 10,
       "gamesPlayed": ["T-1777730400614"]
+    },
+    "Zer0s": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 1,
+      "points": 2,
+      "gamesPlayed": ["T-1778335200000"]
+    },
+    "amary": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": ["T-1778335200000"]
+    },
+    "Shadow_Ruler": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": ["T-1778335200000"]
     }
   },
   "tournaments": [
@@ -111,12 +138,12 @@
       "third": "a1cluke",
       "players": ["Haffey", "itzJ", "a1cluke", "guest_663575"],
       "matchLog": [
-        { "matchId": "wb_r1_m1", "round": "WB R1",     "p1": "Haffey",        "p2": "guest_663575", "winner": "Haffey",        "loser": "guest_663575", "method": "series" },
-        { "matchId": "wb_r1_m2", "round": "WB R1",     "p1": "itzJ",          "p2": "a1cluke",      "winner": "itzJ",          "loser": "a1cluke",      "method": "series" },
-        { "matchId": "wb_r2_m1", "round": "WB Final",  "p1": "Haffey",        "p2": "itzJ",         "winner": "Haffey",        "loser": "itzJ",         "method": "series" },
-        { "matchId": "lb_r1_m1", "round": "LB R1",     "p1": "guest_663575",  "p2": "a1cluke",      "winner": "a1cluke",       "loser": "guest_663575", "method": "series" },
-        { "matchId": "lb_r2_m1", "round": "LB R2",     "p1": "a1cluke",       "p2": "itzJ",         "winner": "itzJ",          "loser": "a1cluke",      "method": "series" },
-        { "matchId": "gf_m1",    "round": "Grand Final","p1": "Haffey",        "p2": "itzJ",         "winner": "Haffey",        "loser": "itzJ",         "method": "series" }
+        { "matchId": "wb_r1_m1", "round": "WB R1",     "p1": "Haffey",       "p2": "guest_663575", "winner": "Haffey",  "loser": "guest_663575", "method": "series" },
+        { "matchId": "wb_r1_m2", "round": "WB R1",     "p1": "itzJ",         "p2": "a1cluke",      "winner": "itzJ",    "loser": "a1cluke",      "method": "series" },
+        { "matchId": "wb_r2_m1", "round": "WB Final",  "p1": "Haffey",       "p2": "itzJ",         "winner": "Haffey",  "loser": "itzJ",         "method": "series" },
+        { "matchId": "lb_r1_m1", "round": "LB R1",     "p1": "guest_663575", "p2": "a1cluke",      "winner": "a1cluke", "loser": "guest_663575", "method": "series" },
+        { "matchId": "lb_r2_m1", "round": "LB R2",     "p1": "a1cluke",      "p2": "itzJ",         "winner": "itzJ",    "loser": "a1cluke",      "method": "series" },
+        { "matchId": "gf_m1",    "round": "Grand Final","p1": "Haffey",       "p2": "itzJ",         "winner": "Haffey",  "loser": "itzJ",         "method": "series" }
       ],
       "bracket": {
         "format": "double_elimination",
@@ -163,18 +190,18 @@
       ],
       "bracket": {
         "format": "single_elimination",
-        "wb": [
+        "rounds": [
           [
-            { "id": "wb_r1_m1", "p1": "Xizun",            "p2": "ConsciouslyEating", "winner": "ConsciouslyEating", "loser": "Xizun",        "bracket": "W", "roundIdx": 0, "matchIdx": 0 },
-            { "id": "wb_r1_m2", "p1": "TheDarkRealm",     "p2": "icomefromsc",       "winner": "icomefromsc",        "loser": "TheDarkRealm", "bracket": "W", "roundIdx": 0, "matchIdx": 1 },
-            { "id": "wb_r1_m3", "p1": "Highdra_x",        "p2": "Haffey",            "winner": "Haffey",             "loser": "Highdra_x",    "bracket": "W", "roundIdx": 0, "matchIdx": 2 }
+            { "id": "wb_r1_m1", "p1": "Xizun",            "p2": "ConsciouslyEating", "winner": "ConsciouslyEating", "loser": "Xizun",        "bracket": "SE", "roundIdx": 0, "matchIdx": 0 },
+            { "id": "wb_r1_m2", "p1": "TheDarkRealm",     "p2": "icomefromsc",       "winner": "icomefromsc",        "loser": "TheDarkRealm", "bracket": "SE", "roundIdx": 0, "matchIdx": 1 },
+            { "id": "wb_r1_m3", "p1": "Highdra_x",        "p2": "Haffey",            "winner": "Haffey",             "loser": "Highdra_x",    "bracket": "SE", "roundIdx": 0, "matchIdx": 2 }
           ],
           [
-            { "id": "wb_r2_m1", "p1": "ConsciouslyEating","p2": "icomefromsc",       "winner": "icomefromsc",        "loser": "ConsciouslyEating", "bracket": "W", "roundIdx": 1, "matchIdx": 0 },
-            { "id": "wb_r2_m2", "p1": "Haffey",           "p2": null,                "winner": "Haffey",             "loser": null,                "bracket": "W", "roundIdx": 1, "matchIdx": 1 }
+            { "id": "wb_r2_m1", "p1": "ConsciouslyEating","p2": "icomefromsc",       "winner": "icomefromsc",        "loser": "ConsciouslyEating", "bracket": "SE", "roundIdx": 1, "matchIdx": 0 },
+            { "id": "wb_r2_m2", "p1": "Haffey",           "p2": null,                "winner": "Haffey",             "loser": null,                "bracket": "SE", "roundIdx": 1, "matchIdx": 1 }
           ],
           [
-            { "id": "wb_r3_m1", "p1": "icomefromsc",      "p2": "Haffey",            "winner": "Haffey",             "loser": "icomefromsc",       "bracket": "W", "roundIdx": 2, "matchIdx": 0 }
+            { "id": "wb_r3_m1", "p1": "icomefromsc",      "p2": "Haffey",            "winner": "Haffey",             "loser": "icomefromsc",       "bracket": "SE", "roundIdx": 2, "matchIdx": 0 }
           ]
         ],
         "eliminated": ["Xizun", "TheDarkRealm", "Highdra_x", "ConsciouslyEating", "icomefromsc"],
@@ -204,54 +231,62 @@
         "format": "double_elimination",
         "wb": [
           [
-            {
-              "p1": "DragonArcherZ", "p2": "Highdra_x", "winner": "DragonArcherZ", "loser": "Highdra_x",
-              "id": "W-0-0", "bracket": "W", "roundIdx": 0, "matchIdx": 0,
-              "_winNext": { "src": "wb", "ri": 1, "mi": 0, "slot": "p1" },
-              "_loseNext": { "src": "lb", "ri": 0, "mi": 0, "slot": "p1" }
-            },
-            {
-              "p1": "ConsciouslyEating", "p2": "Xab", "winner": "ConsciouslyEating", "loser": "Xab",
-              "id": "W-0-1", "bracket": "W", "roundIdx": 0, "matchIdx": 1,
-              "_winNext": { "src": "wb", "ri": 1, "mi": 0, "slot": "p2" },
-              "_loseNext": { "src": "lb", "ri": 0, "mi": 0, "slot": "p2" }
-            }
+            { "p1": "DragonArcherZ", "p2": "Highdra_x", "winner": "DragonArcherZ", "loser": "Highdra_x", "id": "W-0-0", "bracket": "W", "roundIdx": 0, "matchIdx": 0 },
+            { "p1": "ConsciouslyEating", "p2": "Xab", "winner": "ConsciouslyEating", "loser": "Xab", "id": "W-0-1", "bracket": "W", "roundIdx": 0, "matchIdx": 1 }
           ],
           [
-            {
-              "p1": "DragonArcherZ", "p2": "ConsciouslyEating", "winner": "DragonArcherZ", "loser": "ConsciouslyEating",
-              "id": "W-1-0", "bracket": "W", "roundIdx": 1, "matchIdx": 0,
-              "_winNext": { "src": "gf", "ri": 0, "mi": 0, "slot": "p1" },
-              "_loseNext": { "src": "lb", "ri": 1, "mi": 0, "slot": "p2" }
-            }
+            { "p1": "DragonArcherZ", "p2": "ConsciouslyEating", "winner": "DragonArcherZ", "loser": "ConsciouslyEating", "id": "W-1-0", "bracket": "W", "roundIdx": 1, "matchIdx": 0 }
           ]
         ],
         "lb": [
           [
-            {
-              "p1": "Highdra_x", "p2": "Xab", "winner": "Xab", "loser": "Highdra_x",
-              "id": "L-0-0", "bracket": "L", "roundIdx": 0, "matchIdx": 0,
-              "_winNext": { "src": "lb", "ri": 1, "mi": 0, "slot": "p1" }
-            }
+            { "p1": "Highdra_x", "p2": "Xab", "winner": "Xab", "loser": "Highdra_x", "id": "L-0-0", "bracket": "L", "roundIdx": 0, "matchIdx": 0 }
           ],
           [
-            {
-              "p1": "Xab", "p2": "ConsciouslyEating", "winner": "ConsciouslyEating", "loser": "Xab",
-              "id": "L-1-0", "bracket": "L", "roundIdx": 1, "matchIdx": 0,
-              "_winNext": { "src": "gf", "ri": 0, "mi": 0, "slot": "p2" }
-            }
+            { "p1": "Xab", "p2": "ConsciouslyEating", "winner": "ConsciouslyEating", "loser": "Xab", "id": "L-1-0", "bracket": "L", "roundIdx": 1, "matchIdx": 0 }
           ]
         ],
         "gf": [
-          {
-            "p1": "DragonArcherZ", "p2": "ConsciouslyEating", "winner": "DragonArcherZ", "loser": "ConsciouslyEating",
-            "id": "GF-0-0", "bracket": "GF", "roundIdx": 0, "matchIdx": 0
-          }
+          { "p1": "DragonArcherZ", "p2": "ConsciouslyEating", "winner": "DragonArcherZ", "loser": "ConsciouslyEating", "id": "GF-0-0", "bracket": "GF", "roundIdx": 0, "matchIdx": 0 }
         ],
-        "eliminated": ["Highdra_x", "Xab", "ConsciouslyEating"],
-        "byeSeeds": ["DragonArcherZ", "Highdra_x", "ConsciouslyEating", "Xab"]
+        "eliminated": ["Highdra_x", "Xab", "ConsciouslyEating"]
       }
+    },
+    {
+      "id": "T-1778335200000",
+      "name": "Tournament 5/9/2026",
+      "format": "single_elimination",
+      "date": 1778335200000,
+      "champion": "Haffey",
+      "second": "Xab",
+      "third": "Zer0s",
+      "players": ["Haffey", "amary", "Xab", "Shadow_Ruler", "Zer0s"],
+      "matchLog": [
+        { "matchId": "r1_m1", "round": "Round 1",     "p1": "Haffey", "p2": "amary",        "winner": "Haffey", "loser": "amary",        "method": "no_show" },
+        { "matchId": "r1_m2", "round": "Round 1",     "p1": "Xab",   "p2": "Shadow_Ruler",  "winner": "Xab",   "loser": "Shadow_Ruler",  "method": "no_show" },
+        { "matchId": "sf_m1", "round": "Semi-Finals", "p1": "Haffey", "p2": "Zer0s",        "winner": "Haffey", "loser": "Zer0s",        "method": "series"  },
+        { "matchId": "final", "round": "Final",       "p1": "Haffey", "p2": "Xab",          "winner": "Haffey", "loser": "Xab",          "method": "series"  }
+      ],
+      "bracket": {
+        "format": "single_elimination",
+        "rounds": [
+          [
+            { "id": "r1_m1", "p1": "Haffey", "p2": "amary",       "winner": "Haffey", "loser": "amary",       "bracket": "SE", "roundIdx": 0, "matchIdx": 0 },
+            { "id": "r1_m2", "p1": "Xab",   "p2": "Shadow_Ruler", "winner": "Xab",   "loser": "Shadow_Ruler", "bracket": "SE", "roundIdx": 0, "matchIdx": 1 }
+          ],
+          [
+            { "id": "sf_m1", "p1": "Haffey", "p2": "Zer0s", "winner": "Haffey", "loser": "Zer0s", "bracket": "SE", "roundIdx": 1, "matchIdx": 0 },
+            { "id": "sf_m2", "p1": "Xab",   "p2": null,     "winner": "Xab",   "loser": null,     "bracket": "SE", "roundIdx": 1, "matchIdx": 1 }
+          ],
+          [
+            { "id": "final", "p1": "Haffey", "p2": "Xab", "winner": "Haffey", "loser": "Xab", "bracket": "SE", "roundIdx": 2, "matchIdx": 0 }
+          ]
+        ],
+        "eliminated": ["amary", "Shadow_Ruler", "Zer0s", "Xab"],
+        "champion": "Haffey"
+      },
+      "replayDir": null
     }
   ],
-  "updatedAt": 1777737405063
+  "updatedAt": 1778337200000
 }
