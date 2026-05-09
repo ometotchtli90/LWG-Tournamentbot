@@ -418,10 +418,14 @@ function applyWinDouble(bracket, match, winner) {
   match.loser  = loser;
 
   if (match.bracket === 'W') {
-    // Skip LB drop if loser was pre-marked eliminated (forfeit / no-show)
+    // Skip LB drop if loser was pre-marked eliminated (forfeit / no-show).
+    // Place 'BYE' in their LB slot so resolvePendingByes() can auto-advance
+    // any player already waiting there.
     const alreadyElim = loser && (bracket.eliminated || []).includes(loser);
     if (!alreadyElim && loser) {
       _placeInto(bracket, match._loseNext, loser);
+    } else if (alreadyElim && match._loseNext) {
+      _placeInto(bracket, match._loseNext, 'BYE');
     }
     // Advance winner in WB / to GF
     _placeInto(bracket, match._winNext, winner);
@@ -654,9 +658,36 @@ function getRoundName(match, bracket) {
   return '';
 }
 
-// No-op for double elimination — there are no BYE strings to resolve.
-// Kept for API compatibility with controller.js calls.
-function resolvePendingByes(bracket) {}
+// Scan LB + GF for matches where one slot is 'BYE' and auto-advance
+// the real player. Loops until no more changes (handles chains).
+// Called after every applyWin so disqualification cascades resolve immediately.
+function resolvePendingByes(bracket) {
+  if (bracket.format !== 'double_elimination') return;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const allMatches = [...(bracket.lb || []).flat(), ...(bracket.gf || [])];
+    for (const m of allMatches) {
+      if (!m || m.winner) continue;
+      const p1Bye = m.p1 === 'BYE';
+      const p2Bye = m.p2 === 'BYE';
+      if (!p1Bye && !p2Bye) continue;
+
+      const real = p1Bye ? m.p2 : m.p1;
+      if (!real || real === 'BYE') {
+        // Both slots are BYE — propagate BYE onward
+        m.winner = 'BYE'; m.loser = 'BYE';
+        if (m._winNext) _placeInto(bracket, m._winNext, 'BYE');
+      } else {
+        // Real player gets a walkover
+        m.winner = real;
+        m.loser  = 'BYE';
+        _placeInto(bracket, m._winNext, real);
+      }
+      changed = true;
+    }
+  }
+}
 
 module.exports = {
   buildSingleElim, autoByesSingle,

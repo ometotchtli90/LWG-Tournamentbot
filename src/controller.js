@@ -852,9 +852,27 @@ async function applyResult(match, winner, loser, method, gameName) {
 
 // ── Manual win ────────────────────────────────────────────
 async function reportWin(winner, reporter) {
-  const match = B.readyMatches(state.bracket)
+  let match = B.readyMatches(state.bracket)
     .find(m => m.p1?.toLowerCase() === winner.toLowerCase() ||
                m.p2?.toLowerCase() === winner.toLowerCase());
+
+  // Fallback: find a stuck LB match where this player is waiting for a TBD/null opponent.
+  // This happens when a disqualified player's LB slot was never filled.
+  if (!match && state.bracket?.format === 'double_elimination') {
+    const wl = winner.toLowerCase();
+    const stuck = (state.bracket.lb || []).flat().find(m =>
+      !m.winner && (
+        (m.p1?.toLowerCase() === wl && !m.p2) ||
+        (m.p2?.toLowerCase() === wl && !m.p1)
+      )
+    );
+    if (stuck) {
+      // Fill the empty slot with BYE so applyWin / resolvePendingByes work normally
+      if (!stuck.p1) stuck.p1 = 'BYE';
+      if (!stuck.p2) stuck.p2 = 'BYE';
+      match = stuck;
+    }
+  }
 
   if (!match) {
     await chat(`⚠️ ${reporter}: no active match found for "${winner}".`); return;
