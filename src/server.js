@@ -32,26 +32,39 @@ function startServer() {
   // data/leaderboard.json  = persistent master (survives redeploys, in Coolify volume)
   // leaderboard/data.json  = web-served copy  (baked into image, but NOT persistent)
   //
-  // Problem: Coolify mounts /app/data from the host volume, hiding any files
-  // the image baked into /app/data. So on first deploy, the master doesn't
-  // exist yet even though data/leaderboard.json was committed to the repo.
-  //
-  // Solution: if the persistent master is missing, seed it from the baked-in
-  // leaderboard/data.json (which IS in the image). On subsequent deploys the
-  // master in the volume takes precedence and is synced back to the served copy.
+  // Coolify mounts /app/data from a host volume, hiding image-baked files there.
+  // Two scenarios handled at startup:
+  //   A) Master missing   → first deploy, seed master from image copy.
+  //   B) Master exists but image has tournament IDs not in master → a deliberate
+  //      commit+redeploy updated the image; promote image to master so new data wins.
+  //   C) Master is a superset of image → master has live data, keep it.
   try {
     const masterPath = path.join(__dirname, '..', 'data', 'leaderboard.json');
     const imagePath  = path.join(__dirname, '..', 'leaderboard', 'data.json');
 
-    if (!fs.existsSync(masterPath)) {
-      // First run after deploy — seed persistent master from image copy
-      if (fs.existsSync(imagePath)) {
+    let masterData = null;
+    let imageData  = null;
+    try { masterData = JSON.parse(fs.readFileSync(masterPath, 'utf8')); } catch (_) {}
+    try { imageData  = JSON.parse(fs.readFileSync(imagePath,  'utf8')); } catch (_) {}
+
+    if (!masterData) {
+      // Scenario A — first run, seed master from image
+      if (imageData) {
         fs.mkdirSync(path.dirname(masterPath), { recursive: true });
         fs.copyFileSync(imagePath, masterPath);
         console.log('  Leaderboard master seeded from image leaderboard/data.json');
       } else {
         console.warn('  No leaderboard data found — starting fresh');
       }
+    } else if (imageData) {
+      // Scenario B — check if image has tournament IDs that master is missing
+      const masterIds  = new Set((masterData.tournaments  || []).map(t => t.id));
+      const newInImage = (imageData.tournaments || []).filter(t => !masterIds.has(t.id));
+      if (newInImage.length > 0) {
+        fs.copyFileSync(imagePath, masterPath);
+        console.log(`  Image has ${newInImage.length} new tournament(s) not in master — promoting image to master`);
+      }
+      // Scenario C — master already has all image tournaments (or more); keep master
     }
 
     // Sync master → web-served copy (always, so the public site is up to date)
