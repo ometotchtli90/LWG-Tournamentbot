@@ -286,37 +286,61 @@ async function sendPrivateMessage(page, targetPlayer, text) {
   return true;
 }
 
-// ── Read new chat messages via MutationObserver (returns a stop fn) ──
+// ── Read new chat messages via polling (returns a stop fn) ──
 function watchLobbyChat(page, onMessage) {
-  // We poll the chat area every 500ms via page.evaluate and diff against last seen.
-  // On the very first tick we snapshot the current message count and skip all
-  // existing history — this prevents stale !ban / !ready messages from a previous
-  // match being replayed when a new ban phase or ready-check starts.
-  let lastCount   = 0;
+  // Track by the numeric ID embedded in each span's id attribute (e.g. "chat309844" → 309844).
+  // This survives LWG capping the chat history: if old spans are removed from the DOM the
+  // ever-increasing message IDs are still used, so we never miss new messages regardless
+  // of how many messages the DOM currently holds.
+  //
+  // On the first tick we snapshot the current max ID and skip everything already in the
+  // DOM — this prevents stale !ban / !ready messages from being replayed on reconnect.
+  let lastId      = -1;
   let initialized = false;
   const iv = setInterval(async () => {
     try {
-      const messages = await page.evaluate((since) => {
+      const result = await page.evaluate((lastId) => {
         const area = document.getElementById('lobbyChatTextArea');
-        if (!area) return [];
+        if (!area) return null;
         const nodes = [...area.querySelectorAll('span[id^="chat"]')];
-        return nodes.slice(since).map(node => ({
-          username: node.querySelector('a.playerNameInList')?.innerText?.trim() || null,
-          message:  (node.querySelector('span:last-child')?.innerText || '').replace(/^:\s*/, '').trim(),
-          idx:      nodes.indexOf(node),
-        }));
-      }, lastCount);
+        const msgs  = [];
+        let   maxId = lastId;
+        for (const node of nodes) {
+          const numId = parseInt(node.id.slice(4), 10); // 'chat' = 4 chars
+          if (isNaN(numId)) continue;                   // skip non-message spans
+          if (numId > maxId) maxId = numId;
+          if (numId <= lastId) continue;                // already seen
+
+          const link     = node.querySelector('a.playerNameInList');
+          let   username = link?.innerText?.trim() || null;
+          const fullText = (node.innerText || node.textContent || '').trim();
+          let   message;
+          if (username) {
+            const afterName = fullText.indexOf(username);
+            message = afterName >= 0
+              ? fullText.slice(afterName + username.length).replace(/^:\s*/, '').trim()
+              : (node.querySelector('span:last-child')?.innerText || fullText).replace(/^:\s*/, '').trim();
+          } else {
+            const ci = fullText.indexOf(': ');
+            if (ci > 0) { username = fullText.slice(0, ci).trim(); message = fullText.slice(ci + 2).trim(); }
+            else          { message = fullText; }
+          }
+          msgs.push({ username, message });
+        }
+        return { msgs, maxId };
+      }, lastId);
+
+      if (!result) return; // area not found yet — keep waiting
 
       if (!initialized) {
-        // Skip everything already in the DOM — only process messages from here on
         initialized = true;
-        if (messages.length) lastCount = messages[messages.length - 1].idx + 1;
+        lastId = result.maxId; // snapshot — skip everything currently in the DOM
         return;
       }
 
-      for (const m of messages) {
+      lastId = result.maxId;
+      for (const m of result.msgs) {
         if (m.username && m.message) onMessage(m.username, m.message);
-        lastCount = Math.max(lastCount, m.idx + 1);
       }
     } catch (_) {}
   }, 500);
@@ -380,32 +404,53 @@ function watchGameChat(page, onLine, onProtocol) {
 // ── Watch game lobby chat (#lobbyGameChatTextArea) ──────────
 // Same structure as main lobby: span[id^="chat"] with a.playerNameInList
 function watchLobbyGameChat(page, onMessage) {
-  let lastCount   = 0;
+  // Same ID-based tracking as watchLobbyChat — immune to DOM history trimming.
+  let lastId      = -1;
   let initialized = false;
   const iv = setInterval(async () => {
     try {
-      const messages = await page.evaluate((since) => {
+      const result = await page.evaluate((lastId) => {
         const area = document.getElementById('lobbyGameChatTextArea');
-        if (!area) return [];
+        if (!area) return null;
         const nodes = [...area.querySelectorAll('span[id^="chat"]')];
-        return nodes.slice(since).map((node, i) => ({
-          username: node.querySelector('a.playerNameInList')?.innerText?.trim() || null,
-          message:  (node.querySelector('span:last-child')?.innerText || '').replace(/^:\s*/, '').trim(),
-          idx:      since + i,
-        }));
-      }, lastCount);
+        const msgs  = [];
+        let   maxId = lastId;
+        for (const node of nodes) {
+          const numId = parseInt(node.id.slice(4), 10);
+          if (isNaN(numId)) continue;
+          if (numId > maxId) maxId = numId;
+          if (numId <= lastId) continue;
 
-      // On first tick, snapshot current position without processing —
-      // prevents stale messages typed before the game lobby opened from being replayed.
+          const link     = node.querySelector('a.playerNameInList');
+          let   username = link?.innerText?.trim() || null;
+          const fullText = (node.innerText || node.textContent || '').trim();
+          let   message;
+          if (username) {
+            const afterName = fullText.indexOf(username);
+            message = afterName >= 0
+              ? fullText.slice(afterName + username.length).replace(/^:\s*/, '').trim()
+              : (node.querySelector('span:last-child')?.innerText || fullText).replace(/^:\s*/, '').trim();
+          } else {
+            const ci = fullText.indexOf(': ');
+            if (ci > 0) { username = fullText.slice(0, ci).trim(); message = fullText.slice(ci + 2).trim(); }
+            else          { message = fullText; }
+          }
+          msgs.push({ username, message });
+        }
+        return { msgs, maxId };
+      }, lastId);
+
+      if (!result) return;
+
       if (!initialized) {
         initialized = true;
-        if (messages.length) lastCount = messages[messages.length - 1].idx + 1;
+        lastId = result.maxId;
         return;
       }
 
-      for (const m of messages) {
+      lastId = result.maxId;
+      for (const m of result.msgs) {
         if (m.username && m.message) onMessage(m.username, m.message);
-        lastCount = Math.max(lastCount, m.idx + 1);
       }
     } catch (_) {}
   }, 300);
