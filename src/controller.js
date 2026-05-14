@@ -157,21 +157,33 @@ async function boot(accounts) {
   await ph.login(cp, accounts.controller.username, accounts.controller.password);
   state.controllerPage = cp;
 
+  // Start chat watcher immediately after controller login so it is always
+  // running — even if a worker login fails below.
+  state.stopChatWatch = ph.watchLobbyChat(state.controllerPage, handleChatMessage);
+  startSharedPoller();
+
   const { browser: wb } = await launchBrowser(workersHeadless);
   console.log(`  Workers headless: ${workersHeadless}`);
   state.workerBrowser   = wb;
 
   for (const acc of accounts.workers) {
     console.log(`  Worker (headless): ${acc.username}`);
-    const ctx = await wb.newContext({ acceptDownloads: true });
-    const wp  = await ctx.newPage();
-    await ph.navigateToLobby(wp);
-    await ph.login(wp, acc.username, acc.password);
-    state.workerPages.push({ page: wp, username: acc.username, busy: false });
+    try {
+      const ctx = await wb.newContext({ acceptDownloads: true });
+      const wp  = await ctx.newPage();
+      await ph.navigateToLobby(wp);
+      await ph.login(wp, acc.username, acc.password);
+      state.workerPages.push({ page: wp, username: acc.username, busy: false });
+    } catch (e) {
+      // One worker failing must not abort the whole boot — log and continue.
+      console.error(`  ⚠ Worker ${acc.username} login failed: ${e.message}`);
+      emit('worker_log', { message: `⚠ ${acc.username} login failed: ${e.message}`, ts: Date.now() });
+    }
   }
 
-  state.stopChatWatch = ph.watchLobbyChat(state.controllerPage, handleChatMessage);
-  startSharedPoller();
+  if (state.workerPages.length === 0) {
+    throw new Error('All worker logins failed — cannot run tournaments without at least one worker bot.');
+  }
 
   // Compute replay save directory (userData/replays/)
   try {
@@ -185,8 +197,9 @@ async function boot(accounts) {
     console.warn('  Could not set up replay dir:', e.message);
   }
 
-  console.log('✅ All accounts ready.\n');
-  emit('boot', { workers: state.workerPages.map(w => w.username), channel });
+  const wNames = state.workerPages.map(w => w.username);
+  console.log(`✅ Boot complete. Workers: ${wNames.join(', ')}\n`);
+  emit('boot', { workers: wNames, channel });
 }
 
 // ── Chat handler ──────────────────────────────────────────
@@ -1148,18 +1161,23 @@ async function doReconnect(accounts) {
   await ph.login(cp, accounts.controller.username, accounts.controller.password);
   state.controllerPage = cp;
 
+  state.stopChatWatch = ph.watchLobbyChat(state.controllerPage, handleChatMessage);
+  startSharedPoller();
+
   const { browser: wb } = await launchBrowser(workersHeadless);
   state.workerBrowser = wb;
   for (const acc of accounts.workers) {
-    const ctx = await wb.newContext({ acceptDownloads: true });
-    const wp  = await ctx.newPage();
-    await ph.navigateToLobby(wp);
-    await ph.login(wp, acc.username, acc.password);
-    state.workerPages.push({ page: wp, username: acc.username, busy: false });
+    try {
+      const ctx = await wb.newContext({ acceptDownloads: true });
+      const wp  = await ctx.newPage();
+      await ph.navigateToLobby(wp);
+      await ph.login(wp, acc.username, acc.password);
+      state.workerPages.push({ page: wp, username: acc.username, busy: false });
+    } catch (e) {
+      console.error(`  ⚠ Worker ${acc.username} login failed: ${e.message}`);
+      emit('worker_log', { message: `⚠ ${acc.username} login failed: ${e.message}`, ts: Date.now() });
+    }
   }
-
-  state.stopChatWatch = ph.watchLobbyChat(state.controllerPage, handleChatMessage);
-  startSharedPoller();
 
   emit('boot', { workers: state.workerPages.map(w => w.username), channel });
 

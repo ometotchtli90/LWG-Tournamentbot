@@ -81,17 +81,32 @@ async function login(page, username, password) {
   console.log(`    [${username}] Dismissing popups...`);
   await dismissPopups(page);
 
-  console.log(`    [${username}] Clicking login button...`);
-  await page.waitForSelector('#loginPromptButton', { timeout: 10000 });
-  // force:true bypasses Playwright's interception check — needed because changelogDiv
-  // may still be in the DOM (even if hidden) and Playwright considers it an interceptor.
+  console.log(`    [${username}] Waiting for login button or session...`);
+  // Wait for EITHER the login button (not logged in) OR an already-active session
+  // (playerNameDisplay showing a non-guest name). The latter happens when a browser
+  // context somehow retains a previous session. Timeout raised to 30 s to handle
+  // slow page initialisation on second/third concurrent browser contexts.
+  const loginState = await page.waitForFunction(() => {
+    const btn  = document.getElementById('loginPromptButton');
+    const disp = document.getElementById('playerNameDisplay');
+    const name = (disp?.innerText || disp?.textContent || '').trim();
+    const alreadyIn = name.length > 0 && !name.toLowerCase().includes('guest');
+    return btn ? 'needs_login' : (alreadyIn ? 'already_in' : false);
+  }, null, { timeout: 30000 }).then(h => h.jsonValue()).catch(() => 'needs_login');
+
+  if (loginState === 'already_in') {
+    console.log(`  ✓ ${username}: session already active, skipping login form`);
+    return;
+  }
+
+  // Click the login button via JS evaluate (bypasses any overlay interception)
   await page.evaluate(() => {
     const btn = document.getElementById('loginPromptButton');
     if (btn) btn.click();
   });
 
   console.log(`    [${username}] Waiting for login form...`);
-  await page.waitForSelector('#loginWindowUsername', { timeout: 10000 });
+  await page.waitForSelector('#loginWindowUsername', { timeout: 15000 });
 
   console.log(`    [${username}] Filling credentials...`);
   await page.fill('#loginWindowUsername', username);
@@ -311,20 +326,8 @@ function watchLobbyChat(page, onMessage) {
           if (numId > maxId) maxId = numId;
           if (numId <= lastId) continue;                // already seen
 
-          const link     = node.querySelector('a.playerNameInList');
-          let   username = link?.innerText?.trim() || null;
-          const fullText = (node.innerText || node.textContent || '').trim();
-          let   message;
-          if (username) {
-            const afterName = fullText.indexOf(username);
-            message = afterName >= 0
-              ? fullText.slice(afterName + username.length).replace(/^:\s*/, '').trim()
-              : (node.querySelector('span:last-child')?.innerText || fullText).replace(/^:\s*/, '').trim();
-          } else {
-            const ci = fullText.indexOf(': ');
-            if (ci > 0) { username = fullText.slice(0, ci).trim(); message = fullText.slice(ci + 2).trim(); }
-            else          { message = fullText; }
-          }
+          const username = node.querySelector('a.playerNameInList')?.innerText?.trim() || null;
+          const message  = (node.querySelector('span:last-child')?.innerText || '').replace(/^:\s*/, '').trim();
           msgs.push({ username, message });
         }
         return { msgs, maxId };
@@ -421,20 +424,8 @@ function watchLobbyGameChat(page, onMessage) {
           if (numId > maxId) maxId = numId;
           if (numId <= lastId) continue;
 
-          const link     = node.querySelector('a.playerNameInList');
-          let   username = link?.innerText?.trim() || null;
-          const fullText = (node.innerText || node.textContent || '').trim();
-          let   message;
-          if (username) {
-            const afterName = fullText.indexOf(username);
-            message = afterName >= 0
-              ? fullText.slice(afterName + username.length).replace(/^:\s*/, '').trim()
-              : (node.querySelector('span:last-child')?.innerText || fullText).replace(/^:\s*/, '').trim();
-          } else {
-            const ci = fullText.indexOf(': ');
-            if (ci > 0) { username = fullText.slice(0, ci).trim(); message = fullText.slice(ci + 2).trim(); }
-            else          { message = fullText; }
-          }
+          const username = node.querySelector('a.playerNameInList')?.innerText?.trim() || null;
+          const message  = (node.querySelector('span:last-child')?.innerText || '').replace(/^:\s*/, '').trim();
           msgs.push({ username, message });
         }
         return { msgs, maxId };
