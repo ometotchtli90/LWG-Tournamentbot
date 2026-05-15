@@ -94,7 +94,7 @@ function generateHTML(data) {
   const latest = tournaments[0] || null;
 
   // ── Bracket renderer ──────────────────────────────────
-  function matchCardHTML(m, isActive) {
+  function matchCardHTML(m, isActive, replayFiles) {
     if(!m) return '';
     const p1=m.p1||'TBD', p2=m.p2||'TBD', w=m.winner;
     const slot = (name) => {
@@ -102,18 +102,26 @@ function generateHTML(data) {
       const cls = isBye||isTbd ? 'tbd' : w===name ? 'win' : w ? 'lose' : '';
       return `<div class="bslot ${cls}"><span class="bname">${esc(name)}</span>${w===name?'<span class="btrophy">🏆</span>':''}</div>`;
     };
-    return `<div class="bmatch${isActive&&!w?' active':''}">${slot(p1)}${slot(p2)}</div>`;
+    const dlRow = replayFiles && replayFiles.length
+      ? `<div class="breplay-row">${replayFiles.map((f,i)=>`<a class="breplay" href="/replays/${esc(f)}" download title="Download replay">${replayFiles.length>1?`⬇ G${i+1}`:'⬇ Replay'}</a>`).join('')}</div>`
+      : '';
+    return `<div class="bmatch${isActive&&!w?' active':''}">${slot(p1)}${slot(p2)}${dlRow}</div>`;
   }
 
-  function roundHTML(title, matches, cls='') {
+  function roundHTML(title, matches, cls='', replayMap={}) {
     return `<div class="bround ${cls}">
       <div class="bround-title">${esc(title)}</div>
-      <div class="bround-matches">${(matches||[]).map(m=>matchCardHTML(m,true)).join('')}</div>
+      <div class="bround-matches">${(matches||[]).map(m=>matchCardHTML(m,true,m&&replayMap[m.id])).join('')}</div>
     </div>`;
   }
 
   function bracketHTML(t) {
     if(!t||!t.bracket) return '<p class="no-data">No bracket data.</p>';
+    // Build replay lookup: matchId → [filenames] from matchLog
+    const replayMap = {};
+    (t.matchLog||[]).forEach(ml => {
+      if (ml.replayFiles && ml.replayFiles.length) replayMap[ml.matchId] = ml.replayFiles;
+    });
     const fmt = t.bracket.format;
     if(fmt==='single_elimination') {
       const total = t.bracket.rounds?.length||1;
@@ -121,17 +129,17 @@ function generateHTML(data) {
         const n=total-ri;
         const nm = n===1?'Final':n===2?'Semi-Finals':n===3?'Quarter-Finals':`Round ${ri+1}`;
         const cls = r.every(m=>m.winner)?'done':r.some(m=>!m.winner&&m.p1&&m.p2)?'current':'upcoming';
-        return roundHTML(nm,r,cls);
+        return roundHTML(nm,r,cls,replayMap);
       }).join('')}</div>`;
     }
     if(fmt==='double_elimination') {
       return `<div class="bracket-section">
         <div class="bracket-section-label wb">Winner Bracket</div>
-        <div class="bracket-tree">${(t.bracket.wb||[]).map((r,i)=>roundHTML(`WB Round ${i+1}`,r)).join('')}</div>
+        <div class="bracket-tree">${(t.bracket.wb||[]).map((r,i)=>roundHTML(`WB Round ${i+1}`,r,'',replayMap)).join('')}</div>
         <div class="bracket-section-label lb">Loser Bracket</div>
-        <div class="bracket-tree">${(t.bracket.lb||[]).map((r,i)=>roundHTML(`LB Round ${i+1}`,r)).join('')}</div>
+        <div class="bracket-tree">${(t.bracket.lb||[]).map((r,i)=>roundHTML(`LB Round ${i+1}`,r,'',replayMap)).join('')}</div>
         ${t.bracket.gf?`<div class="bracket-section-label gf">Grand Final</div>
-        <div class="bracket-tree">${roundHTML('Grand Final',t.bracket.gf,'gf-round')}</div>`:''}
+        <div class="bracket-tree">${roundHTML('Grand Final',t.bracket.gf,'gf-round',replayMap)}</div>`:''}
       </div>`;
     }
     return '';
@@ -177,10 +185,15 @@ function generateHTML(data) {
     const d = new Date(t.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
     const fmt = {single_elimination:'Single Elimination',double_elimination:'Double Elimination',swiss:'Swiss'}[t.format]||t.format||'';
     const mrows = (t.matchLog||[]).filter(m=>m.winner&&m.winner!=='BYE').map(m=>{
-      const badge = m.method!=='gg'?`<span class="mbadge">${esc(m.method)}</span>`:'';
+      const badge   = m.method&&m.method!=='gg'&&m.method!=='series'?`<span class="mbadge">${esc(m.method)}</span>`:'';
+      const score   = m.score?`<span class="mscore">${esc(m.score)}</span>`:'';
+      const replays = (m.replayFiles||[]).map((f,i)=>
+        `<a class="mreplay" href="/replays/${esc(f)}" download title="Download replay">${(m.replayFiles||[]).length>1?`⬇ G${i+1}`:'⬇'}</a>`
+      ).join('');
       return `<tr><td class="mround">${esc(m.round||'')}</td><td>${esc(m.p1||'')}</td>
         <td class="mvsep">vs</td><td>${esc(m.p2||'')}</td>
-        <td class="mwinner">${esc(m.winner)}${badge}</td></tr>`;
+        <td class="mwinner">${esc(m.winner)}${score}${badge}</td>
+        <td class="mreplay-cell">${replays}</td></tr>`;
     }).join('');
     const matchCount = (t.matchLog||[]).filter(m=>m.winner&&m.winner!=='BYE').length;
     return `<div class="tcard" style="--anim-delay:${ti*50}ms">
@@ -200,7 +213,7 @@ function generateHTML(data) {
           <summary><span class="det-icon">⚔</span> Match Results <span class="det-count">${matchCount}</span></summary>
           <div class="mtable-wrap">
             <table class="mtable">
-              <thead><tr><th>Round</th><th>Player 1</th><th></th><th>Player 2</th><th>Winner</th></tr></thead>
+              <thead><tr><th>Round</th><th>Player 1</th><th></th><th>Player 2</th><th>Winner</th><th>Replay</th></tr></thead>
               <tbody>${mrows}</tbody>
             </table>
           </div>
@@ -548,6 +561,35 @@ nav {
   border-radius: 4px; padding: 1px 6px; margin-left: 6px;
   color: var(--text3); vertical-align: middle;
 }
+.mscore {
+  font-size: 11px; font-family: var(--font-mono); font-weight: 600;
+  background: rgba(96,165,250,.08); border: 1px solid rgba(96,165,250,.25);
+  border-radius: 4px; padding: 1px 7px; margin-left: 8px;
+  color: var(--blue); vertical-align: middle;
+}
+.mreplay-cell { white-space: nowrap; }
+.mreplay {
+  display: inline-block;
+  font-size: 11px; font-family: var(--font-mono); font-weight: 600;
+  background: rgba(167,139,250,.08); border: 1px solid rgba(167,139,250,.3);
+  border-radius: 4px; padding: 2px 8px; margin-right: 4px;
+  color: var(--purple); text-decoration: none; vertical-align: middle;
+  transition: background .15s, border-color .15s;
+}
+.mreplay:hover { background: rgba(167,139,250,.2); border-color: rgba(167,139,250,.5); }
+/* Replay download row inside bracket match cards */
+.breplay-row {
+  padding: 5px 10px; border-top: 1px solid var(--border);
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.breplay {
+  font-size: 10px; font-family: var(--font-mono); font-weight: 600;
+  background: rgba(167,139,250,.08); border: 1px solid rgba(167,139,250,.3);
+  border-radius: 4px; padding: 2px 8px;
+  color: var(--purple); text-decoration: none;
+  transition: background .15s, border-color .15s;
+}
+.breplay:hover { background: rgba(167,139,250,.2); border-color: rgba(167,139,250,.5); }
 
 /* ── Bracket ─────────────────────────────────────────── */
 .bracket-wrap { padding: 24px 28px; overflow-x: auto; }

@@ -115,6 +115,19 @@ function startServer() {
     res.sendFile(p);
   });
 
+  // Replay file downloads — public, no auth required.
+  // Files are stored in data/replays/ (persistent volume) and served by filename.
+  // Filename sanitisation prevents directory traversal.
+  const replaysDir = path.join(__dirname, '..', 'data', 'replays');
+  fs.mkdirSync(replaysDir, { recursive: true }); // ensure dir exists on fresh volume
+  app.get('/replays/:filename', (req, res) => {
+    const filename = req.params.filename;
+    if (!/^[\w\-. ]+\.json$/i.test(filename)) return res.status(400).send('Invalid filename');
+    const filePath = path.join(replaysDir, filename);
+    if (!fs.existsSync(filePath)) return res.status(404).send('Replay not found');
+    res.download(filePath, filename); // triggers browser Save-As dialog
+  });
+
   // Public schedule feed — only enabled schedules, no internal fields
   app.get('/schedules.json', (_req, res) => {
     res.set(noCache);

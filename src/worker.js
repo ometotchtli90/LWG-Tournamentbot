@@ -209,19 +209,6 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   const gameDurationMs = Date.now() - gameStartTime;
   log(`Result: winner=${result.winner} method=${result.method} duration=${Math.round(gameDurationMs/1000)}s`);
 
-  // ── 9b. Rehost check ───────────────────────────────────────
-  // Offer rehost if the game ended via disconnect (no gg) or lasted < 3 minutes
-  const needsRehostCheck = result.method !== 'cancelled'
-    && (result.method === 'disconnect' || gameDurationMs < 3 * 60_000);
-  if (needsRehostCheck) {
-    log('Game eligible for rehost — asking both players');
-    const rehostResult = await askForRehost(page, p1, p2, result);
-    if (rehostResult === 'rehost') {
-      log('Both players agreed to rehost');
-      result.rehost = true;
-    }
-  }
-
   // ── 10. Leave the game ────────────────────────────────────
   log('Leaving game...');
   try {
@@ -241,37 +228,40 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   // ── 11. Save replay then close stats screen ──────────────
   log('Saving replay and closing stats screen...');
+  let replayFile = null;
+
+  // Build filename up-front — shared by both primary and fallback attempts
+  const replayFilename = replayOpts.replayDir ? (() => {
+    const date   = new Date().toISOString().slice(0, 10);
+    const round  = (replayOpts.roundName || 'Match').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '-');
+    const p1safe = p1.replace(/[^a-zA-Z0-9_-]/g, '');
+    const p2safe = p2.replace(/[^a-zA-Z0-9_-]/g, '');
+    return `${date}_${round}_${p1safe}-vs-${p2safe}.json`;
+  })() : null;
+  const replaySavePath = replayFilename
+    ? require('path').join(replayOpts.replayDir, replayFilename) : null;
+
   try {
     await page.waitForSelector('#statisticsWindow', { timeout: 8000 });
 
-    // ── Download replay ───────────────────────────────────
-    const replayBtn = await page.$('#saveReplayButton');
-    if (replayBtn && replayOpts.replayDir) {
-      try {
-        // Build a clean filename: YYYY-MM-DD_Round_P1-vs-P2.lwr
-        const date      = new Date().toISOString().slice(0, 10); // 2024-01-15
-        const round     = (replayOpts.roundName || 'Match').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '-');
-        const p1safe    = p1.replace(/[^a-zA-Z0-9_-]/g, '');
-        const p2safe    = p2.replace(/[^a-zA-Z0-9_-]/g, '');
-        const filename  = `${date}_${round}_${p1safe}-vs-${p2safe}.lwr`;
-        const savePath  = require('path').join(replayOpts.replayDir, filename);
-
-        // Set up download listener BEFORE clicking the button
-        const downloadPromise = page.waitForEvent('download', { timeout: 10000 });
-        await replayBtn.evaluate(el => el.click());
-        const download = await downloadPromise;
-        await download.saveAs(savePath);
-        log(`Replay saved: ${filename}`);
-      } catch (re) {
-        log(`Replay save failed: ${re.message} — continuing.`);
+    // ── Primary: #saveReplayButton on the stats screen ────
+    if (replaySavePath) {
+      const replayBtn = await page.$('#saveReplayButton');
+      if (replayBtn) {
+        try {
+          const downloadPromise = page.waitForEvent('download', { timeout: 10000 });
+          await replayBtn.evaluate(el => el.click());
+          const download = await downloadPromise;
+          await download.saveAs(replaySavePath);
+          replayFile = replayFilename;
+          log(`Replay saved (stats screen): ${replayFilename}`);
+        } catch (re) {
+          log(`Stats-screen replay save failed: ${re.message} — will try fallback`);
+        }
       }
-    } else if (replayBtn) {
-      // No replayDir configured — just click to trigger native save dialog (will be ignored headless)
-      log('No replay dir configured — skipping replay download.');
     }
 
     // ── Close stats screen ────────────────────────────────
-    // Retry up to 5 times — the button may take a moment to become clickable
     let statsClosed = false;
     for (let attempt = 0; attempt < 5 && !statsClosed; attempt++) {
       await page.waitForTimeout(400);
@@ -284,6 +274,42 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     else              { log('Could not close stats screen — proceeding anyway.'); }
   } catch (_) {
     log('No stats screen found, continuing...');
+  }
+
+  // ── Fallback: find & save from #replaysListWindow ────────
+  // Only attempted when primary failed or stats screen never appeared.
+  // The replay list always has the most recent game at the top, so
+  // searching by both player names finds the right one reliably.
+  if (!replayFile && replaySavePath) {
+    log('Attempting fallback replay save from replay list...');
+    try {
+      await ph.saveReplayFromList(page, p1, p2, replaySavePath);
+      replayFile = replayFilename;
+      log(`Replay saved (fallback): ${replayFilename}`);
+    } catch (fe) {
+      log(`Fallback replay save failed: ${fe.message}`);
+    }
+  }
+
+  // ── 11b. Verify replay outcome vs reported result ─────────
+  // Parses playerLefts in the saved JSON — whoever left the match is the loser.
+  // Logs a warning if the replay disagrees with the bot-reported result.
+  // Never blocks or throws — purely informational.
+  if (replayFile && replaySavePath) {
+    try {
+      const v = ph.verifyReplayOutcome(replaySavePath, p1, p2);
+      if (v.confidence === 'none') {
+        log(`Replay check: no player-left data found — outcome not independently verifiable`);
+      } else if (v.confidence === 'uncertain') {
+        log(`Replay check: both players appear in playerLefts — cannot determine winner`);
+      } else if (v.winner && v.winner.toLowerCase() !== result.winner.toLowerCase()) {
+        log(`⚠️  REPLAY MISMATCH: bot reported winner=${result.winner} but replay says winner=${v.winner} (loser left the game)`);
+      } else {
+        log(`Replay check ✓ winner=${v.winner} confirmed (loser ${v.loser} left the game)`);
+      }
+    } catch (ve) {
+      log(`Replay verification failed: ${ve.message}`);
+    }
   }
 
   // ── 12. Wait for lobby to be ready for next game ─────────
@@ -304,7 +330,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   }
   await page.waitForTimeout(500);
 
-  return result;
+  return { ...result, replayFile };
 }
 
 // ── Wait until exactly p1+p2 fill the slots ──────────────
@@ -524,61 +550,6 @@ async function kickGuests(page, workerName, p1, p2) {
   }
 }
 
-// ── Ask both players for !rehost after a suspect result ────
-// Returns 'rehost' if both agree within 60s, otherwise 'confirm'
-async function askForRehost(page, p1, p2, result) {
-  const reason = result.method === 'disconnect'
-    ? `${result.loser} disconnected`
-    : 'Game ended in under 3 minutes';
-
-  await ph.sendIngameChat(page,
-    `⚠️ ${reason}. Both players can type !rehost within 60 seconds to replay this game.`
-  ).catch(() => {});
-
-  return new Promise(resolve => {
-    const rehosts = new Set();
-    const p1l = p1.toLowerCase(), p2l = p2.toLowerCase();
-    let done = false;
-
-    const stopChat = ph.watchGameChat(page, (line) => {
-      if (done || !line.trim()) return;
-      const colonIdx = line.indexOf(':');
-      if (colonIdx < 0) return;
-      const sender = ph.stripClanTag(line.slice(0, colonIdx).trim()).toLowerCase();
-      const rest   = line.slice(colonIdx + 1).trim();
-      const bracketIdx = rest.lastIndexOf('] ');
-      const msgBody = (bracketIdx >= 0 ? rest.slice(bracketIdx + 2) : rest).trim().toLowerCase();
-
-      if (msgBody === '!rehost') {
-        if (sender === p1l) rehosts.add(p1l);
-        if (sender === p2l) rehosts.add(p2l);
-
-        if (rehosts.size === 1) {
-          const who = sender === p1l ? p1 : p2;
-          ph.sendIngameChat(page, `✅ ${who} wants a rehost. Waiting for the other player to type !rehost...`).catch(() => {});
-        }
-
-        if (rehosts.size >= 2) {
-          done = true;
-          stopChat();
-          clearTimeout(timer);
-          ph.sendIngameChat(page, '🔄 Both players agreed — rehosting!').catch(() => {});
-          resolve('rehost');
-        }
-      }
-    });
-
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      stopChat();
-      if (rehosts.size > 0) {
-        ph.sendIngameChat(page, '⏰ Rehost timer expired — only one player requested. Result stands.').catch(() => {});
-      }
-      resolve('confirm');
-    }, 60_000);
-  });
-}
 
 // ── Watch for game result ────────────────────────────────
 // Two detection methods run in parallel:
@@ -742,9 +713,10 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
 // Returns { winner, loser, method, wins: { p1: n, p2: n } }
 async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, onStatus, getPlayerStatus, onResultKnown, cancelToken, replayOpts = {}) {
   const log        = (msg) => console.log(`  [${workerName}] ${msg}`);
-  const winsNeeded = Math.ceil(bestOf / 2);
-  const wins       = { [p1]: 0, [p2]: 0 };
-  let   gameNum    = 0;
+  const winsNeeded  = Math.ceil(bestOf / 2);
+  const wins        = { [p1]: 0, [p2]: 0 };
+  const replayFiles = [];  // collect filenames from each game in the series
+  let   gameNum     = 0;
   // remainingMaps: the ordered list of maps to play — one per game in sequence.
   // After bans this will be the surviving maps (e.g. 3 for BO3 with 5-map pool).
   let remainingMaps = [...mapPool];
@@ -824,15 +796,9 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
       require('./config').mapName = origMap;
     }
 
-    if (result.method === 'cancelled') return { winner: p1, loser: p2, method: 'cancelled', wins };
+    if (result.method === 'cancelled') return { winner: p1, loser: p2, method: 'cancelled', wins, replayFiles };
 
-    // Rehost: replay the same game (don't count this result)
-    if (result.rehost) {
-      log('Rehosting game ' + gameNum + ' — result discarded');
-      gameNum--; // replay same game number
-      continue;
-    }
-
+    if (result.replayFile) replayFiles.push(result.replayFile);
     wins[result.winner]++;
     log(`Game ${gameNum}: ${result.winner} wins — series ${p1}:${wins[p1]} ${p2}:${wins[p2]}`);
 
@@ -844,7 +810,7 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
 
   const winner = wins[p1] >= winsNeeded ? p1 : p2;
   const loser  = winner === p1 ? p2 : p1;
-  return { winner, loser, method: 'series', wins };
+  return { winner, loser, method: 'series', wins, replayFiles };
 }
 
 module.exports = { hostMatch, hostSeries };

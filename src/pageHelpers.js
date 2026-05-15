@@ -213,9 +213,13 @@ async function sendIngameChat(page, text) {
     if (i > 0) await page.waitForTimeout(400);
     const chunk = chunks[i];
     const sent = await page.evaluate((val) => {
-      // Switch dropdown to "All" before sending
+      // Switch dropdown to "All" (*) before sending, then fire change so LWG picks it up.
+      // Without the change event LWG ignores the .value assignment and keeps Spectators.
       const dropdown = document.getElementById('ingameChatDropdown');
-      if (dropdown) dropdown.value = '*';
+      if (dropdown && dropdown.value !== '*') {
+        dropdown.value = '*';
+        dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+      }
 
       const input = document.getElementById('ingameChatInput')
                  || document.querySelector('input[id*="ingame"]')
@@ -299,6 +303,98 @@ async function sendPrivateMessage(page, targetPlayer, text) {
 
   console.log(`  ✓ PM sent to ${targetPlayer}`);
   return true;
+}
+
+// ── Save a replay from the #replaysListWindow (fallback) ────
+// Opens the replay panel, finds the most recent entry that contains both
+// player names in its title, clicks its Save button, and captures the download.
+// Closes the panel when done (success or failure).
+async function saveReplayFromList(page, p1, p2, savePath) {
+  const p1l = p1.toLowerCase();
+  const p2l = p2.toLowerCase();
+
+  // Open the replay list
+  await page.evaluate(() => {
+    const btn = document.getElementById('replayButton');
+    if (btn) btn.click();
+  });
+
+  // Wait for at least one entry to appear (list may take a moment to populate)
+  await page.waitForSelector('#replaysListContent .replayDiv', { timeout: 6000 });
+
+  // Find the save-button id of the most recent matching replay (list is newest-first)
+  const saveBtnId = await page.evaluate((p1l, p2l) => {
+    for (const div of document.querySelectorAll('#replaysListContent .replayDiv')) {
+      const name = (div.querySelector('.replayName')?.textContent || '').toLowerCase();
+      if (!name.includes(p1l) || !name.includes(p2l)) continue;
+      // Buttons in .replayRider: [watch, save, X] — save is index 1
+      const saveBtn = div.querySelectorAll('.replayRider button')[1];
+      return saveBtn?.id || null;
+    }
+    return null;
+  }, p1l, p2l);
+
+  // Always close the panel before throwing
+  const closePanel = () => page.evaluate(() => {
+    document.querySelector('#replaysListWindow button.closeButton')?.click();
+  }).catch(() => {});
+
+  if (!saveBtnId) {
+    await closePanel();
+    throw new Error(`No matching replay found for ${p1} vs ${p2}`);
+  }
+
+  // Capture download event then click save
+  const downloadPromise = page.waitForEvent('download', { timeout: 10000 });
+  await page.evaluate((id) => { document.getElementById(id)?.click(); }, saveBtnId);
+  const download = await downloadPromise;
+  await download.saveAs(savePath);
+
+  await closePanel();
+}
+
+// ── Verify match outcome from a saved replay JSON ────────────
+// Reads playerLefts from the replay file and determines who was the loser
+// (the player who left the game). Returns:
+//   { winner, loser, confidence: 'high' }  — one tournament player left
+//   { winner: null, loser: null, confidence: 'none' }  — neither left (inconclusive)
+//   { winner: null, loser: null, confidence: 'uncertain' }  — both left
+// This is a synchronous helper — call it only after the file is fully written.
+function verifyReplayOutcome(replayPath, p1, p2) {
+  const fs = require('fs');
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(replayPath, 'utf8'));
+  } catch (_) {
+    return { winner: null, loser: null, confidence: 'none' };
+  }
+
+  const players     = data.players     || [];
+  const playerLefts = data.playerLefts || {};
+
+  // Build nr (string) → lowercase name lookup
+  const nrToName = {};
+  for (const p of players) nrToName[String(p.nr)] = (p.name || '').toLowerCase();
+
+  const p1l = p1.toLowerCase();
+  const p2l = p2.toLowerCase();
+
+  // Collect all player nrs that left at any tick
+  const leaverNames = new Set();
+  for (const nrs of Object.values(playerLefts)) {
+    for (const nr of nrs) {
+      const name = nrToName[String(nr)];
+      if (name) leaverNames.add(name);
+    }
+  }
+
+  const p1left = leaverNames.has(p1l);
+  const p2left = leaverNames.has(p2l);
+
+  if  (p1left && !p2left) return { winner: p2, loser: p1,   confidence: 'high' };
+  if  (p2left && !p1left) return { winner: p1, loser: p2,   confidence: 'high' };
+  if  (!p1left && !p2left) return { winner: null, loser: null, confidence: 'none' };
+  return                          { winner: null, loser: null, confidence: 'uncertain' };
 }
 
 // ── Read new chat messages via polling (returns a stop fn) ──
@@ -579,5 +675,5 @@ module.exports = {
   sendLobbyChat, sendGameChat, sendIngameChat, sendPrivateMessage,
   watchLobbyChat, watchLobbyGameChat, watchGameChat,
   getSlotPlayers, getSpecPlayers, kickPlayer, getPlayerLobbyStatus, isInGame,
-  waitForMapBans, stripClanTag,
+  waitForMapBans, stripClanTag, saveReplayFromList, verifyReplayOutcome,
 };

@@ -185,17 +185,15 @@ async function boot(accounts) {
     throw new Error('All worker logins failed — cannot run tournaments without at least one worker bot.');
   }
 
-  // Compute replay save directory (userData/replays/)
+  // Replay directory — default to data/replays/ (persistent volume on server, local in dev).
+  // In Electron builds, prefer the OS userData path instead.
+  state.replayDir = require('path').join(__dirname, '..', 'data', 'replays');
   try {
-    const electron = require('electron');
-    const userApp  = electron.app;
-    const dataDir  = userApp ? userApp.getPath('userData') : require('path').join(__dirname, '..');
-    state.replayDir = require('path').join(dataDir, 'replays');
-    require('fs').mkdirSync(state.replayDir, { recursive: true });
-    console.log(`  Replay dir: ${state.replayDir}`);
-  } catch (e) {
-    console.warn('  Could not set up replay dir:', e.message);
-  }
+    const { app } = require('electron');
+    if (app) state.replayDir = require('path').join(app.getPath('userData'), 'replays');
+  } catch (_) {} // not running in Electron — keep the data/replays default
+  require('fs').mkdirSync(state.replayDir, { recursive: true });
+  console.log(`  Replay dir: ${state.replayDir}`);
 
   const wNames = state.workerPages.map(w => w.username);
   console.log(`✅ Boot complete. Workers: ${wNames.join(', ')}\n`);
@@ -577,7 +575,13 @@ function startMatch(match, worker, gameName) {
     worker.busy = false;
     delete state.activeMatches[match.id];
     delete state.cancelTokens[match.id];
-    await applyResult(match, result.winner, result.loser, result.method, gameName);
+    // Build score string from the wins object returned by hostSeries (e.g. "2-1", "1-0")
+    const wins        = result.wins || {};
+    const score       = Object.keys(wins).length > 0
+      ? `${wins[result.winner] || 0}-${wins[result.loser] || 0}`
+      : null;
+    const replayFiles = result.replayFiles && result.replayFiles.length ? result.replayFiles : null;
+    await applyResult(match, result.winner, result.loser, result.method, gameName, score, replayFiles);
   }).catch(async err => {
     unsubscribe();
     matchResolved = true;
@@ -751,7 +755,7 @@ async function checkWalkoverChampion() {
 }
 
 // ── Apply result ──────────────────────────────────────────
-async function applyResult(match, winner, loser, method, gameName) {
+async function applyResult(match, winner, loser, method, gameName, score = null, replayFiles = null) {
   // If there's an active worker for this match (e.g. Force Win called mid-game),
   // cancel it now so watchForResult stops and doesn't double-apply.
   if (state.cancelTokens[match.id]) {
@@ -815,6 +819,8 @@ async function applyResult(match, winner, loser, method, gameName) {
       round:   B.getRoundName(match, state.bracket),
       p1: match.p1, p2: match.p2,
       winner, loser, method,
+      ...(score                                ? { score }       : {}),
+      ...(replayFiles && replayFiles.length   ? { replayFiles } : {}),
     });
   }
 
