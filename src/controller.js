@@ -185,13 +185,8 @@ async function boot(accounts) {
     throw new Error('All worker logins failed — cannot run tournaments without at least one worker bot.');
   }
 
-  // Replay directory — default to data/replays/ (persistent volume on server, local in dev).
-  // In Electron builds, prefer the OS userData path instead.
+  // Replay directory — stored in data/replays/ (persistent volume on server, local in dev).
   state.replayDir = require('path').join(__dirname, '..', 'data', 'replays');
-  try {
-    const { app } = require('electron');
-    if (app) state.replayDir = require('path').join(app.getPath('userData'), 'replays');
-  } catch (_) {} // not running in Electron — keep the data/replays default
   require('fs').mkdirSync(state.replayDir, { recursive: true });
   console.log(`  Replay dir: ${state.replayDir}`);
 

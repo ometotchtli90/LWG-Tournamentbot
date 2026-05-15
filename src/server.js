@@ -1,7 +1,4 @@
 'use strict';
-// server.js is not used in the Electron build —
-// the Express server is started directly from main.js.
-// This file exists only so the non-Electron path still works.
 
 const express  = require('express');
 const http     = require('http');
