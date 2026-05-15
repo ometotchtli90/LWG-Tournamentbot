@@ -1,13 +1,13 @@
 {
   "players": {
     "Haffey": {
-      "wins": 8,
-      "losses": 0,
+      "wins": 9,
+      "losses": 1,
       "titles": 3,
-      "top3": 3,
-      "matches": 8,
-      "points": 30,
-      "gamesPlayed": ["t_20260408", "t_20260411", "T-1778335200000"]
+      "top3": 4,
+      "matches": 10,
+      "points": 35,
+      "gamesPlayed": ["t_20260408", "t_20260411", "T-1778335200000", "T-1778857200000"]
     },
     "itzJ": {
       "wins": 2,
@@ -100,13 +100,13 @@
       "gamesPlayed": ["T-1777730400614"]
     },
     "Zer0s": {
-      "wins": 0,
-      "losses": 1,
+      "wins": 1,
+      "losses": 2,
       "titles": 0,
-      "top3": 1,
-      "matches": 1,
-      "points": 2,
-      "gamesPlayed": ["T-1778335200000"]
+      "top3": 2,
+      "matches": 3,
+      "points": 4,
+      "gamesPlayed": ["T-1778335200000", "T-1778857200000"]
     },
     "amary": {
       "wins": 0,
@@ -125,6 +125,33 @@
       "matches": 1,
       "points": 1,
       "gamesPlayed": ["T-1778335200000"]
+    },
+    "WeirdRat": {
+      "wins": 2,
+      "losses": 0,
+      "titles": 1,
+      "top3": 1,
+      "matches": 2,
+      "points": 10,
+      "gamesPlayed": ["T-1778857200000"]
+    },
+    "hazmel": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": ["T-1778857200000"]
+    },
+    "crayon": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 0,
+      "matches": 1,
+      "points": 1,
+      "gamesPlayed": ["T-1778857200000"]
     }
   },
   "tournaments": [
@@ -284,6 +311,40 @@
         ],
         "eliminated": ["amary", "Shadow_Ruler", "Zer0s", "Xab"],
         "champion": "Haffey"
+      },
+      "replayDir": null
+    },
+    {
+      "id": "T-1778857200000",
+      "name": "Tournament 5/15/2026",
+      "format": "single_elimination",
+      "date": 1778857200000,
+      "champion": "WeirdRat",
+      "second": "Haffey",
+      "third": "Zer0s",
+      "players": ["WeirdRat", "Haffey", "Zer0s", "crayon", "hazmel"],
+      "matchLog": [
+        { "matchId": "qf_m1", "round": "Quarter-Finals", "p1": "hazmel",   "p2": "Zer0s",    "winner": "Zer0s",    "loser": "hazmel",   "method": "series", "score": "2-0" },
+        { "matchId": "sf_m1", "round": "Semi-Finals",    "p1": "Haffey",   "p2": "crayon",   "winner": "Haffey",   "loser": "crayon",   "method": "series", "score": "2-0" },
+        { "matchId": "sf_m2", "round": "Semi-Finals",    "p1": "WeirdRat", "p2": "Zer0s",    "winner": "WeirdRat", "loser": "Zer0s",    "method": "series", "score": "2-0" },
+        { "matchId": "final", "round": "Final",           "p1": "Haffey",   "p2": "WeirdRat", "winner": "WeirdRat", "loser": "Haffey",   "method": "series", "score": "2-0" }
+      ],
+      "bracket": {
+        "format": "single_elimination",
+        "rounds": [
+          [
+            { "id": "qf_m1", "p1": "hazmel",   "p2": "Zer0s",    "winner": "Zer0s",    "loser": "hazmel",   "bracket": "SE", "roundIdx": 0, "matchIdx": 0 }
+          ],
+          [
+            { "id": "sf_m1", "p1": "Haffey",   "p2": "crayon",   "winner": "Haffey",   "loser": "crayon",   "bracket": "SE", "roundIdx": 1, "matchIdx": 0 },
+            { "id": "sf_m2", "p1": "WeirdRat", "p2": "Zer0s",    "winner": "WeirdRat", "loser": "Zer0s",    "bracket": "SE", "roundIdx": 1, "matchIdx": 1 }
+          ],
+          [
+            { "id": "final", "p1": "Haffey",   "p2": "WeirdRat", "winner": "WeirdRat", "loser": "Haffey",   "bracket": "SE", "roundIdx": 2, "matchIdx": 0 }
+          ]
+        ],
+        "eliminated": ["hazmel", "crayon", "Zer0s", "Haffey"],
+        "champion": "WeirdRat"
       },
       "replayDir": null
     }

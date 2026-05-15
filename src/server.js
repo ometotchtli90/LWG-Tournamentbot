@@ -63,8 +63,28 @@ function startServer() {
       if (newInImage.length > 0) {
         fs.copyFileSync(imagePath, masterPath);
         console.log(`  Image has ${newInImage.length} new tournament(s) not in master — promoting image to master`);
+      } else {
+        // Scenario C — master has all tournament IDs; but still merge any score/replayFiles
+        // fields that were backfilled in the image but are absent from the live master.
+        // This lets a committed backfill propagate to the persistent volume on redeploy
+        // without overwriting any live data the master already has.
+        let mergeCount = 0;
+        for (const imgT of (imageData.tournaments || [])) {
+          const mstrT = (masterData.tournaments || []).find(t => t.id === imgT.id);
+          if (!mstrT) continue;
+          for (const imgM of (imgT.matchLog || [])) {
+            const mstrM = (mstrT.matchLog || []).find(m => m.matchId === imgM.matchId);
+            if (!mstrM) continue;
+            if (!mstrM.score && imgM.score)                                           { mstrM.score = imgM.score; mergeCount++; }
+            if ((!mstrM.replayFiles || !mstrM.replayFiles.length) && imgM.replayFiles?.length) { mstrM.replayFiles = imgM.replayFiles; mergeCount++; }
+          }
+        }
+        if (mergeCount > 0) {
+          fs.writeFileSync(masterPath, JSON.stringify(masterData, null, 2), 'utf8');
+          console.log(`  Merged ${mergeCount} score/replayFiles field(s) from image into master`);
+        }
+        // Scenario C end — master kept (with any newly merged fields)
       }
-      // Scenario C — master already has all image tournaments (or more); keep master
     }
 
     // Sync master → web-served copy (always, so the public site is up to date)
