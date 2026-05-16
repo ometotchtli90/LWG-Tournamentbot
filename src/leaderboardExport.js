@@ -94,33 +94,45 @@ function generateHTML(data) {
   const latest = tournaments[0] || null;
 
   // ── Bracket renderer ──────────────────────────────────
-  function matchCardHTML(m, isActive, replayFiles) {
+  function matchCardHTML(m, isActive, replayFiles, score) {
     if(!m) return '';
     const p1=m.p1||'TBD', p2=m.p2||'TBD', w=m.winner;
-    const slot = (name) => {
+    // Derive per-slot game counts from "winner_wins-loser_wins" score string
+    let p1Sc = null, p2Sc = null;
+    if (score && w) {
+      const parts = score.split('-');
+      const wSc = parseInt(parts[0], 10), lSc = parseInt(parts[1], 10);
+      if (!isNaN(wSc) && !isNaN(lSc)) {
+        p1Sc = w === p1 ? wSc : lSc;
+        p2Sc = w === p2 ? wSc : lSc;
+      }
+    }
+    const slot = (name, sc) => {
       const isBye = name==='BYE', isTbd = !name||name==='TBD';
       const cls = isBye||isTbd ? 'tbd' : w===name ? 'win' : w ? 'lose' : '';
-      return `<div class="bslot ${cls}"><span class="bname">${esc(name)}</span>${w===name?'<span class="btrophy">🏆</span>':''}</div>`;
+      const scoreSpan = sc !== null ? `<span class="bscore">${sc}</span>` : '';
+      return `<div class="bslot ${cls}"><span class="bname">${esc(name)}</span>${scoreSpan}</div>`;
     };
     const dlRow = replayFiles && replayFiles.length
       ? `<div class="breplay-row">${replayFiles.map((f,i)=>`<a class="breplay" href="/replays/${esc(f)}" download title="Download replay">${replayFiles.length>1?`⬇ G${i+1}`:'⬇ Replay'}</a>`).join('')}</div>`
       : '';
-    return `<div class="bmatch${isActive&&!w?' active':''}">${slot(p1)}${slot(p2)}${dlRow}</div>`;
+    return `<div class="bmatch${isActive&&!w?' active':''}">${slot(p1,p1Sc)}${slot(p2,p2Sc)}${dlRow}</div>`;
   }
 
-  function roundHTML(title, matches, cls='', replayMap={}) {
+  function roundHTML(title, matches, cls='', replayMap={}, scoreMap={}) {
     return `<div class="bround ${cls}">
       <div class="bround-title">${esc(title)}</div>
-      <div class="bround-matches">${(matches||[]).map(m=>matchCardHTML(m,true,m&&replayMap[m.id])).join('')}</div>
+      <div class="bround-matches">${(matches||[]).map(m=>matchCardHTML(m,true,m&&replayMap[m.id],m&&scoreMap[m.id])).join('')}</div>
     </div>`;
   }
 
   function bracketHTML(t) {
     if(!t||!t.bracket) return '<p class="no-data">No bracket data.</p>';
-    // Build replay lookup: matchId → [filenames] from matchLog
-    const replayMap = {};
+    // Build match lookups: matchId → replayFiles / score, from matchLog
+    const replayMap = {}, scoreMap = {};
     (t.matchLog||[]).forEach(ml => {
       if (ml.replayFiles && ml.replayFiles.length) replayMap[ml.matchId] = ml.replayFiles;
+      if (ml.score) scoreMap[ml.matchId] = ml.score;
     });
     const fmt = t.bracket.format;
     if(fmt==='single_elimination') {
@@ -129,17 +141,17 @@ function generateHTML(data) {
         const n=total-ri;
         const nm = n===1?'Final':n===2?'Semi-Finals':n===3?'Quarter-Finals':`Round ${ri+1}`;
         const cls = r.every(m=>m.winner)?'done':r.some(m=>!m.winner&&m.p1&&m.p2)?'current':'upcoming';
-        return roundHTML(nm,r,cls,replayMap);
+        return roundHTML(nm,r,cls,replayMap,scoreMap);
       }).join('')}</div>`;
     }
     if(fmt==='double_elimination') {
       return `<div class="bracket-section">
         <div class="bracket-section-label wb">Winner Bracket</div>
-        <div class="bracket-tree">${(t.bracket.wb||[]).map((r,i)=>roundHTML(`WB Round ${i+1}`,r,'',replayMap)).join('')}</div>
+        <div class="bracket-tree">${(t.bracket.wb||[]).map((r,i)=>roundHTML(`WB Round ${i+1}`,r,'',replayMap,scoreMap)).join('')}</div>
         <div class="bracket-section-label lb">Loser Bracket</div>
-        <div class="bracket-tree">${(t.bracket.lb||[]).map((r,i)=>roundHTML(`LB Round ${i+1}`,r,'',replayMap)).join('')}</div>
+        <div class="bracket-tree">${(t.bracket.lb||[]).map((r,i)=>roundHTML(`LB Round ${i+1}`,r,'',replayMap,scoreMap)).join('')}</div>
         ${t.bracket.gf?`<div class="bracket-section-label gf">Grand Final</div>
-        <div class="bracket-tree">${roundHTML('Grand Final',t.bracket.gf,'gf-round',replayMap)}</div>`:''}
+        <div class="bracket-tree">${roundHTML('Grand Final',t.bracket.gf,'gf-round',replayMap,scoreMap)}</div>`:''}
       </div>`;
     }
     return '';
@@ -634,7 +646,9 @@ nav {
 .bname { flex: 1; font-weight: 500; }
 .bslot.win .bname  { font-weight: 700; color: var(--green); }
 .bslot.lose .bname { color: var(--text3); text-decoration: line-through; }
-.btrophy { font-size: 12px; flex-shrink: 0; }
+.bscore  { font-size: 11px; font-weight: 700; font-family: var(--font-mono); flex-shrink: 0; margin-right: 5px; color: var(--text3); }
+.bslot.win  .bscore { color: var(--green); }
+.bslot.lose .bscore { color: var(--red);   }
 
 /* ── Latest bracket live section ─────────────────────── */
 .live-badge {
