@@ -396,7 +396,10 @@ body {
 .bslot-name { flex: 1; }
 .bslot.win  .bslot-name { color: var(--green); }
 .bslot.lose .bslot-name { color: var(--blue-dim); text-decoration: line-through; }
-.bslot-trophy { font-size: 10px; }
+.bscore { font-size: 10px; font-weight: 700; flex-shrink: 0; margin-right: 4px; color: var(--blue-dim); }
+.bslot.win  .bscore { color: var(--green); }
+.bslot.lose .bscore { color: var(--red); }
+.mcol-score { text-align: center; font-weight: 700; color: var(--blue-text); font-family: var(--mono, monospace); }
 
 .bsec-label {
   font-family: var(--pixel);
@@ -760,20 +763,31 @@ function esc(s) {
 // ══════════════════════════════════════════════════════════
 // BRACKET RENDERER
 // ══════════════════════════════════════════════════════════
-function renderBracket(bracket) {
+function renderBracket(bracket, matchLog) {
   if (!bracket) return '<div class="empty" style="padding:20px"><div class="empty-sub">No bracket data.</div></div>';
 
-  function slot(name, winner) {
+  // Build score lookup: matchId → "winner_wins-loser_wins"
+  const scoreMap = {};
+  (matchLog||[]).forEach(ml => { if (ml.score) scoreMap[ml.matchId] = ml.score; });
+
+  function slot(name, winner, sc) {
     const isBye = name === 'BYE', isTbd = !name || name === 'TBD';
     const cls = isBye||isTbd ? (isBye?'bye':'tbd') : winner===name?'win':winner?'lose':'';
-    const trophy = winner===name ? '<span class="bslot-trophy">🏆</span>' : '';
-    return `<div class="bslot ${cls}"><span class="bslot-name">${esc(name||'TBD')}</span>${trophy}</div>`;
+    const scoreSpan = sc !== null && sc !== undefined ? `<span class="bscore">${sc}</span>` : '';
+    return `<div class="bslot ${cls}"><span class="bslot-name">${esc(name||'TBD')}</span>${scoreSpan}</div>`;
   }
   function card(m) {
     if (!m) return '';
     const p1=m.p1||'TBD', p2=m.p2||'TBD', w=m.winner;
     const live = !w && p1!=='BYE' && p1!=='TBD' && p2!=='BYE' && p2!=='TBD';
-    return `<div class="bmatch${live?' live':''}">${slot(p1,w)}${slot(p2,w)}</div>`;
+    let p1Sc=null, p2Sc=null;
+    const score = scoreMap[m.id];
+    if (score && w) {
+      const parts = score.split('-');
+      const wSc=parseInt(parts[0],10), lSc=parseInt(parts[1],10);
+      if (!isNaN(wSc)&&!isNaN(lSc)) { p1Sc=w===p1?wSc:lSc; p2Sc=w===p2?wSc:lSc; }
+    }
+    return `<div class="bmatch${live?' live':''}">${slot(p1,w,p1Sc)}${slot(p2,w,p2Sc)}</div>`;
   }
   function round(title, matches, cls='') {
     return `<div class="bround ${cls}">
@@ -901,11 +915,13 @@ function render(data) {
     const mrows = (t.matchLog||[]).filter(m=>m.winner&&m.winner!=='BYE').map(m=>{
       const badgeStyle = m.method==='forfeit' ? ' style="background:#5a1a1a;color:#ff6b6b;border-color:#7a2a2a;"' : m.method==='no_show' ? ' style="background:#3a2a00;color:#f0a500;border-color:#5a4200;"' : '';
       const badge = m.method!=='gg'?`<span class="mbadge"${badgeStyle}>${esc(m.method==='no_show'?'no show':m.method)}</span>`:'';
+      const scoreCell = m.score ? `<td class="mcol-score">${esc(m.score)}</td>` : '<td></td>';
       return `<tr>
         <td class="mcol-round">${esc(m.round||'')}</td>
         <td>${esc(m.p1||'')}</td>
         <td class="mcol-vs">vs</td>
         <td>${esc(m.p2||'')}</td>
+        ${scoreCell}
         <td class="mcol-win">${esc(m.winner)}${badge}</td>
       </tr>`;
     }).join('');
@@ -926,12 +942,12 @@ function render(data) {
       </div>
       ${mrows?`<details class="tdetail"><summary>Match Results <span class="det-count">${mc} games</span></summary>
         <div class="mwrap"><table class="mtbl">
-          <thead><tr><th>Round</th><th>P1</th><th></th><th>P2</th><th>Winner</th></tr></thead>
+          <thead><tr><th>Round</th><th>P1</th><th></th><th>P2</th><th>Score</th><th>Winner</th></tr></thead>
           <tbody>${mrows}</tbody>
         </table></div>
       </details>`:''}
       <details class="tdetail"><summary>View Bracket</summary>
-        <div class="bwrap">${renderBracket(t.bracket)}</div>
+        <div class="bwrap">${renderBracket(t.bracket, t.matchLog)}</div>
       </details>
     </div>`;
   }).join('');
@@ -993,7 +1009,7 @@ function render(data) {
         ${latest ? `— <span style="color:var(--green);font-size:10px">${esc(latest.name)}</span>` : ''}
       </div>
       <div style="padding:14px">
-        ${latest ? renderBracket(latest.bracket) : '<div class="empty-sub" style="padding:10px">No bracket data yet.</div>'}
+        ${latest ? renderBracket(latest.bracket, latest.matchLog) : '<div class="empty-sub" style="padding:10px">No bracket data yet.</div>'}
       </div>
     </div>
   </div>
