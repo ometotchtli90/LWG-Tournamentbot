@@ -333,20 +333,32 @@
   .match-override-btn:hover { color: var(--gold); border-color: var(--gold); }
   .match-card:hover .match-override-btn { display: inline-block; }
 
-  /* ── Log ──────────────────────────────────── */
-  #logList { list-style: none; display: flex; flex-direction: column; gap: 3px; }
-  .log-item {
-    font-family: var(--pixel);
-    font-size: 8px; padding: 4px 8px;
-    border-left: 3px solid var(--border);
-    background: var(--navy2); word-break: break-word; line-height: 1.6;
+  /* ── Console Log ──────────────────────────── */
+  #logConsole {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 11px; line-height: 1.55;
+    background: #07090e; color: #7a8fb0;
+    border: 1px solid var(--border); border-radius: 3px;
+    height: 420px; overflow-y: auto;
+    padding: 4px 0; word-break: break-all;
   }
-  .log-item.result { border-color: var(--gold); }
-  .log-item.error  { border-color: var(--red);  background: rgba(255,68,68,.06); }
-  .log-item.phase  { border-color: var(--border-hi); }
-  .log-item.player { border-color: var(--green); }
-  .log-item.wlog   { border-color: var(--blue-dim); color: var(--blue-dim); font-size: 7px; }
-  .ts { color: var(--blue-dim); font-size: 8px; margin-right: 5px; }
+  #logConsole::-webkit-scrollbar { width: 5px; }
+  #logConsole::-webkit-scrollbar-track { background: #07090e; }
+  #logConsole::-webkit-scrollbar-thumb { background: #1e2d4a; border-radius: 3px; }
+  .cline { display: flex; align-items: baseline; gap: 7px; padding: 1px 8px; }
+  .cline:hover { background: rgba(255,255,255,.03); }
+  .cts  { color: #2e4268; font-size: 10px; white-space: nowrap; flex-shrink: 0; }
+  .cmsg { flex: 1; }
+  .crep { background: #1c2c48; color: #4a6898; font-size: 9px;
+          padding: 0 5px; border-radius: 8px; white-space: nowrap; flex-shrink: 0; }
+  .c-result .cmsg { color: #5faa6a; }
+  .c-error  .cmsg { color: #d04848; }
+  .c-error        { background: rgba(208,72,72,.05); }
+  .c-phase  .cmsg { color: #b8a840; }
+  .c-player .cmsg { color: #5faa6a; }
+  .c-chat   .cmsg { color: #3aa8b8; }
+  .c-safety .cmsg { color: #1e2d40; }
+  .c-action .cmsg { color: #4a78b8; }
 
   /* ── Champion banner ──────────────────────── */
   #championBanner {
@@ -641,6 +653,7 @@
       <button class="btn btn-full btn-sm" id="btnNewTourney" style="display:none;background:var(--green);color:#000;" onclick="doNewTournament()">▶ New Tournament</button>
       <button class="btn btn-full btn-sm" id="btnCancel" style="display:none;background:#2d1a1a;color:var(--red);border:1px solid #5a2a2a;" onclick="doReset()">✕ Cancel</button>
       <button class="btn btn-ghost btn-full btn-sm" id="btnReconnect" style="display:none;" onclick="doReconnect()">↺ Reconnect Accounts</button>
+      <button class="btn btn-ghost btn-full btn-sm" id="btnDisconnect" style="display:none;color:var(--red);border-color:#5a2a2a;" onclick="doDisconnect()">⏻ Disconnect</button>
     </div>
 
     <!-- Manual Controls -->
@@ -709,9 +722,12 @@
       <div class="side-body">
         <div class="card-title" style="margin-bottom:6px;">
           Event Log
-          <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+          <span style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="copyLog()">Copy</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+          </span>
         </div>
-        <ul id="logList"></ul>
+        <div id="logConsole"></div>
       </div>
     </div>
 
@@ -1139,6 +1155,12 @@ function applyEvent(msg) {
       // Don't reset booted — browsers are still running, user can start signup immediately
       settingsLoaded = false;
       break;
+    case 'disconnect':
+      booted = false;
+      S.workers = [];
+      S.activeMatches = {};
+      settingsLoaded = false;
+      break;
   }
   S.log.push(msg);
   if (S.log.length > 300) S.log.shift();
@@ -1221,6 +1243,20 @@ async function doReconnect() {
   sub.textContent   = 'Opening 1 visible window (controller) + headless workers. Dismissing LWG popups then logging in all accounts. ~30 seconds.';
 }
 
+async function doDisconnect() {
+  const activeWarning = (S.phase === 'running' || S.phase === 'signup')
+    ? '\n\nWarning: active matches/signup will be interrupted.' : '';
+  if (!confirm('Disconnect all browsers? Workers and controller will be closed. You can re-launch them with Launch Browsers afterwards.' + activeWarning)) return;
+  try {
+    const r = await cmd('disconnect');
+    if (r.error) { alert('Disconnect failed: ' + r.error); return; }
+    booted = false;
+    renderButtons();
+  } catch (e) {
+    alert('Disconnect failed: ' + e.message);
+  }
+}
+
 function doNewTournament() {
   // Update local state immediately so UI responds at once
   S.phase         = 'idle';
@@ -1258,7 +1294,7 @@ function doForceWin() {
   const v = document.getElementById('inForceWin').value.trim();
   if (v) { cmd('forceWin', [v]); document.getElementById('inForceWin').value = ''; }
 }
-function clearLog() { S.log = []; renderLog(); }
+function clearLog() { S.log = []; document.getElementById('logConsole').innerHTML = ''; }
 
 // ── Override Result ────────────────────────────────────────
 let _overrideMatch = null;
@@ -1389,9 +1425,11 @@ function renderButtons() {
   const _showCancel = S.phase === 'signup' || S.phase === 'running';
   if (_btnCancel) _btnCancel.style.display = _showCancel ? 'block' : 'none';
 
-  // Reconnect: visible whenever browsers are booted
-  const _btnReconnect = document.getElementById('btnReconnect');
-  if (_btnReconnect) _btnReconnect.style.display = booted ? 'block' : 'none';
+  // Reconnect / Disconnect: visible whenever browsers are booted
+  const _btnReconnect  = document.getElementById('btnReconnect');
+  const _btnDisconnect = document.getElementById('btnDisconnect');
+  if (_btnReconnect)  _btnReconnect.style.display  = booted ? 'block' : 'none';
+  if (_btnDisconnect) _btnDisconnect.style.display = booted ? 'block' : 'none';
 }
 
 function validateBootConfig() {
@@ -1549,23 +1587,52 @@ function renderActiveMatches() {
     </div>`).join('');
 }
 
+function classifyLog(e, text) {
+  if (e.type === 'match_result')  return 'c-result';
+  if (e.type === 'error' || e.type === 'match_error') return 'c-error';
+  if (e.type === 'phase')         return 'c-phase';
+  if (e.type === 'player_joined') return 'c-player';
+  if (e.type === 'chat_out')      return 'c-chat';
+  if (e.type === 'worker_log') {
+    if (/\[safety\]/i.test(text)) return 'c-safety';
+    if (text.includes('⚠') || /error/i.test(text)) return 'c-error';
+    return 'c-action';
+  }
+  if (e.type === 'match_start' || e.type === 'match_status') return 'c-action';
+  return '';
+}
+
 function renderLog() {
-  const el = document.getElementById('logList');
-  const items = (S.log || []).slice().reverse().slice(0, 200);
-  el.innerHTML = items.map(e => {
-    const cls = e.type === 'match_result' ? 'result'
-              : (e.type === 'error' || e.type === 'match_error') ? 'error'
-              : e.type === 'phase'  ? 'phase'
-              : e.type === 'player_joined' ? 'player'
-              : e.type === 'worker_log' ? 'wlog' : '';
-    const time = new Date(e.ts).toLocaleTimeString();
-    return `<li class="log-item ${cls}"><span class="ts">${time}</span>${fmtLog(e)}</li>`;
+  const el = document.getElementById('logConsole');
+  const items = (S.log || []).slice().reverse().slice(0, 300);
+  const rows = items.map(e => ({
+    text: fmtLog(e),
+    cls:  classifyLog(e, fmtLog(e)),
+    time: new Date(e.ts).toLocaleTimeString()
+  }));
+  // Collapse consecutive identical messages
+  const deduped = [];
+  for (const row of rows) {
+    const last = deduped[deduped.length - 1];
+    if (last && last.text === row.text) { last.count++; last.time = row.time; }
+    else deduped.push({ ...row, count: 1 });
+  }
+  el.innerHTML = deduped.map(({ text, cls, time, count }) => {
+    const rep = count > 1 ? `<span class="crep">×${count}</span>` : '';
+    return `<div class="cline ${cls}"><span class="cts">${time}</span><span class="cmsg">${escHtml(text)}</span>${rep}</div>`;
   }).join('');
+}
+
+function copyLog() {
+  const items = (S.log || []).slice().reverse().slice(0, 300);
+  const lines = items.map(e => `[${new Date(e.ts).toLocaleTimeString()}] ${fmtLog(e)}`);
+  navigator.clipboard.writeText(lines.join('\n')).catch(() => {});
 }
 
 function fmtLog(e) {
   switch (e.type) {
     case 'boot':          return `Bot launched (${e.workers?.length || 0} workers · ${e.channel || 'chromium'})`;
+    case 'disconnect':    return 'Browsers disconnected';
     case 'browser_channel': return `Browser: ${e.channel}`;
     case 'format':        return `Format set: ${e.format.replace(/_/g,' ')}`;
     case 'phase':         return `Phase → ${e.phase}${e.champion ? ' · Champion: ' + e.champion : ''}`;

@@ -628,9 +628,6 @@ function waitForMapBans(page, p1, p2, mapPool, timeoutMs, sendMsg, watchFn) {
 
       const banArg = message.slice(5).trim().toLowerCase();
       // Find the best match in the pool (exact then startsWith then includes)
-      const idx = poolLow.findIndex(m => m === banArg)
-               ?? poolLow.findIndex(m => m.startsWith(banArg))
-               ?? poolLow.findIndex(m => m.includes(banArg));
       const matched = poolLow.indexOf(banArg) !== -1        ? mapPool[poolLow.indexOf(banArg)]
                     : poolLow.findIndex(m => m === banArg) >= 0 ? mapPool[poolLow.findIndex(m => m === banArg)]
                     : poolLow.findIndex(m => m.startsWith(banArg)) >= 0 ? mapPool[poolLow.findIndex(m => m.startsWith(banArg))]

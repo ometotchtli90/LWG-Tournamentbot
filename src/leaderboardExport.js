@@ -40,7 +40,7 @@ function recordTournament({ id, name, format, date, champion, second, third, bra
       if (!p || p === 'BYE') return;
       if (!data.players[p]) data.players[p] = { wins:0, losses:0, titles:0, top3:0, matches:0, points:0, gamesPlayed:[] };
     });
-    if (winner && winner !== 'BYE') { data.players[winner].wins++;  data.players[winner].matches++;  data.players[winner].gamesPlayed.push(id); }
+    if (winner && winner !== 'BYE') { data.players[winner].wins++;  data.players[winner].matches++;  if (!data.players[winner].gamesPlayed.includes(id)) data.players[winner].gamesPlayed.push(id); }
     if (loser  && loser  !== 'BYE') { data.players[loser].losses++; data.players[loser].matches++;
       if (!data.players[loser].gamesPlayed.includes(id)) data.players[loser].gamesPlayed.push(id);
     }

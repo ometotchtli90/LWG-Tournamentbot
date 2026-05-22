@@ -7,6 +7,7 @@ const COMMANDS_HELP =
   '!rehost — request a rehost (both players must agree) | ' +
   '!kick <player> — vote to kick a player (both must agree) | ' +
   '!spec — move the bot to spectator | ' +
+  '!bracket — show the leaderboard link | ' +
   '!leave — remove yourself from signup (signup phase only) | ' +
   '!commands — show this list';
 

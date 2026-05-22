@@ -15,8 +15,9 @@ async function jsClick(page, selector) {
 // Returns { winner, loser, method } or throws on fatal error.
 
 async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayerStatus, onResultKnown, cancelToken, replayOpts = {}) {
-  const log    = (msg) => console.log(`  [${workerName}] ${msg}`);
-  const status = (s)   => { log(s); onStatus && onStatus(s); };
+  const log     = (msg) => console.log(`  [${workerName}] ${msg}`);
+  const status  = (s)   => { log(s); onStatus && onStatus(s); };
+  const mapName = replayOpts.mapName || cfg.mapName;
 
   log(`Hosting: ${p1} vs ${p2}`);
 
@@ -71,9 +72,9 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   await page.waitForTimeout(1500);
 
   // ── 2. Search for map ────────────────────────────────────
-  log(`Searching for map: ${cfg.mapName}`);
+  log(`Searching for map: ${mapName}`);
   await page.waitForSelector('#mapSearchInput', { timeout: 8000 });
-  await page.fill('#mapSearchInput', cfg.mapName);
+  await page.fill('#mapSearchInput', mapName);
   await page.dispatchEvent('#mapSearchInput', 'input');
   await page.dispatchEvent('#mapSearchInput', 'change');
   await page.keyboard.press('Enter');
@@ -81,7 +82,7 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
 
   // ── 3. Click the map button ──────────────────────────────
   // Button text format: "MapName [playerCount]" — match exactly on name before the "["
-  log(`Selecting map: "${cfg.mapName}"...`);
+  log(`Selecting map: "${mapName}"...`);
   const mapBtn = await page.waitForFunction((name) => {
     const btns = [...document.querySelectorAll('button.mapButton, button.mapButtonMod')];
     return btns.find(b => {
@@ -89,10 +90,10 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
       const firstTextNode = [...b.childNodes].find(n => n.nodeType === Node.TEXT_NODE);
       const label = (firstTextNode?.textContent || b.innerText || '').trim();
       // Strip the player count "[N]" suffix and compare
-      const mapName = label.replace(/\s*\[\d+\]\s*$/, '').trim();
-      return mapName === name;
+      const mapLabel = label.replace(/\s*\[\d+\]\s*$/, '').trim();
+      return mapLabel === name;
     }) || null;
-  }, cfg.mapName, { timeout: 8000 });
+  }, mapName, { timeout: 8000 });
   await mapBtn.evaluate(el => el.click());
   await page.waitForTimeout(1500);
 
@@ -127,6 +128,39 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     throw new Error('Spectate button did not appear within 60s');
   }
   await page.waitForTimeout(800);
+
+  // ── 5b. Verify spectate succeeded (spec slots may have been full) ──
+  // If the bot is still in a player slot after clicking spectate, all spectator
+  // slots were occupied. Kick one non-essential spectator to free a slot, then retry.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const playerSlots = await ph.getSlotPlayers(page).catch(() => []);
+    const botInPlayer = playerSlots.some(s =>
+      ph.stripClanTag(s.name).toLowerCase() === workerName.toLowerCase()
+    );
+    if (!botInPlayer) break; // successfully spectating
+
+    log(`Still in player slot after spectate click — spectator slots may be full (attempt ${attempt + 1}/3)`);
+    const specSlots = await ph.getSpecPlayers(page).catch(() => []);
+    const toKick = specSlots.filter(s => {
+      const n = ph.stripClanTag(s.name).toLowerCase();
+      return s.removeBtn && n !== p1.toLowerCase() && n !== p2.toLowerCase() && n !== workerName.toLowerCase();
+    });
+    if (toKick.length === 0) {
+      log('⚠️ No kickable spectators found — proceeding anyway');
+      break;
+    }
+    await ph.kickPlayer(page, toKick[0].removeBtn).catch(() => {});
+    log(`Freed spectator slot by kicking: ${toKick[0].name}`);
+    await page.waitForTimeout(800);
+    // Retry spectate click
+    await page.evaluate(() => {
+      const byId = document.getElementById('moveMeToSpecBtn');
+      if (byId && byId.offsetParent !== null) { byId.click(); return; }
+      const btn = [...document.querySelectorAll('button')].find(b => /spectate/i.test(b.textContent) && b.offsetParent !== null);
+      if (btn) btn.click();
+    }).catch(() => {});
+    await page.waitForTimeout(800);
+  }
 
   status('waiting_for_players');
 
@@ -171,6 +205,15 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
     const err = new Error('forfeit');
     err.forfeiter = forfeiter;
     throw err;
+  }
+
+  // !rehost — both players agreed to rehost before the game started
+  if (readyResult && typeof readyResult === 'object' && readyResult.rehost) {
+    await ph.sendGameChat(page, '🔄 Rehost agreed — leaving lobby...').catch(() => {});
+    try { await jsClick(page, '#gameLobbyWindow #backButton'); await page.waitForTimeout(1000); } catch (_) {
+      try { await jsClick(page, '#backButton'); await page.waitForTimeout(1000); } catch (_) {}
+    }
+    throw new Error('rehost');
   }
 
   const bothReady = readyResult === true;
@@ -359,7 +402,6 @@ function waitForCorrectPlayers(page, workerName, p1, p2, timeoutMs, onStatus) {
       if (elapsedMins > 0 && elapsedMins !== lastReminderMin) {
         lastReminderMin = elapsedMins;
         const remainMins = Math.ceil(remaining / 60000);
-        const joined = [lastP1 ? p1 : null, lastP2 ? p2 : null].filter(Boolean);
         const waiting = [!lastP1 ? p1 : null, !lastP2 ? p2 : null].filter(Boolean);
         const msg = waiting.length
           ? `⏳ Still waiting for ${waiting.join(' and ')} to join. ${remainMins} minute${remainMins !== 1 ? 's' : ''} left.`
@@ -412,8 +454,9 @@ const { COMMANDS_HELP } = cfg;
 // Resolves with: true (both ready) | false (timeout) | { forfeit: playerName }
 function waitForBothReady(page, p1, p2, timeoutMs) {
   return new Promise(resolve => {
-    const ready = new Set();
-    const kickVotes = {};          // { targetLower: Set(['p1l','p2l']) }
+    const ready       = new Set();
+    const kickVotes   = {};          // { targetLower: Set(['p1l','p2l']) }
+    const rehostVotes = new Set();
     const p1l = p1.toLowerCase(), p2l = p2.toLowerCase();
     const start = Date.now();
     let done = false;
@@ -437,6 +480,23 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
           clearInterval(iv);
           stop();
           resolve({ forfeit: uLower === p1l ? p1 : p2 });
+        }
+        return;
+      }
+
+      // !rehost — both tournament players must agree
+      if (mLower === '!rehost') {
+        if (uLower === p1l || uLower === p2l) {
+          rehostVotes.add(uLower);
+          if (rehostVotes.size >= 2) {
+            done = true;
+            clearInterval(iv);
+            stop();
+            resolve({ rehost: true });
+          } else {
+            const who = uLower === p1l ? p1 : p2;
+            await ph.sendGameChat(page, `🔄 ${who} wants to rehost. Other player type !rehost to confirm.`).catch(() => {});
+          }
         }
         return;
       }
@@ -477,6 +537,12 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
           const who = uLower === p1l ? p1 : p2;
           await ph.sendGameChat(page, `🗳️ ${who} wants to kick "${target}". Other player type !kick ${target} to confirm.`).catch(() => {});
         }
+        return;
+      }
+
+      // !bracket — send leaderboard link
+      if (mLower === '!bracket') {
+        await ph.sendGameChat(page, '🏆 Leaderboard: https://lwgtourleaderboard.duckdns.org/').catch(() => {});
         return;
       }
 
@@ -597,6 +663,9 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
     }, 500) : null;
 
     // ── Method 1: gg in chat ─────────────────────────────
+    // Cooldown prevents the dual-source (console event + DOM poller) from
+    // firing two responses to the same !bracket command within 10 seconds.
+    let bracketCmdCooldown = false;
     const stopChat = ph.watchGameChat(page, (line) => {
       if (!line.trim() || resolved || ggTimer) return;
       const colonIdx = line.indexOf(':');
@@ -606,6 +675,14 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
       const bracketIdx = rest.lastIndexOf('] ');
       const msgBody  = (bracketIdx >= 0 ? rest.slice(bracketIdx + 2) : rest).trim().toLowerCase();
       console.log(`  [${p1}v${p2}] ${sender}: "${msgBody.slice(0, 60)}"`);
+      if (msgBody === '!bracket') {
+        if (!bracketCmdCooldown) {
+          bracketCmdCooldown = true;
+          ph.sendIngameChat(page, '🏆 Leaderboard: https://lwgtourleaderboard.duckdns.org/').catch(() => {});
+          setTimeout(() => { bracketCmdCooldown = false; }, 10000);
+        }
+        return;
+      }
       const isGG = /^gg[^a-z]*$/.test(msgBody)           // "gg", "GG", "gg!"
                 || /\bgg\b/.test(msgBody)                  // "ok gg", "gg wp", "gg guys"
                 || /^g+$/.test(msgBody);                   // "ggg", "gggg"
@@ -779,10 +856,6 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
         : `🎮 ${p1} vs ${p2} | Map: ${currentMap}`
     );
 
-    // Override cfg.mapName for this game
-    const origMap  = require('./config').mapName;
-    require('./config').mapName = currentMap;
-
     let result;
     try {
       result = await hostMatch(
@@ -790,10 +863,17 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
         `${gameName}_G${gameNum}`,
         p1, p2,
         onStatus, getPlayerStatus, onResultKnown, cancelToken,
-        { ...replayOpts, roundName: `${replayOpts.roundName || 'Match'}_G${gameNum}` }
+        { ...replayOpts, roundName: `${replayOpts.roundName || 'Match'}_G${gameNum}`, mapName: currentMap }
       );
-    } finally {
-      require('./config').mapName = origMap;
+    } catch (err) {
+      if (err.message === 'rehost') {
+        log(`🔄 Rehost requested for game ${gameNum} — retrying...`);
+        await ph.sendLobbyChat(page, `🔄 Rehosting game ${gameNum}...`).catch(() => {});
+        await page.waitForTimeout(3000);
+        gameNum--;
+        continue;
+      }
+      throw err;
     }
 
     if (result.method === 'cancelled') return { winner: p1, loser: p2, method: 'cancelled', wins, replayFiles };
@@ -803,7 +883,6 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
     log(`Game ${gameNum}: ${result.winner} wins — series ${p1}:${wins[p1]} ${p2}:${wins[p2]}`);
 
     if (bestOf > 1) {
-      const newScore = `${wins[p1]}-${wins[p2]}`;
       await ph.sendLobbyChat(page, `📊 Series: ${p1} ${wins[p1]} — ${wins[p2]} ${p2}`);
     }
   }

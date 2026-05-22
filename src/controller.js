@@ -208,6 +208,7 @@ function handleChatMessage(username, message) {
     reportWin(msg.slice(cfg.resultKeyword.length + 1).trim(), username); return;
   }
   if (msg.toLowerCase() === '!commands')  { chat(cfg.COMMANDS_HELP); return; }
+  if (msg.toLowerCase() === '!bracket')   { chat('🏆 Tournament leaderboard: https://lwgtourleaderboard.duckdns.org/'); return; }
 }
 
 async function chat(text) {
@@ -369,14 +370,19 @@ async function buildTournament() {
     await chat(`🗺️ Map pool: ${state.mapPool.join(', ')}`);
   }
 
+  const tName = `Tournament ${new Date().toLocaleDateString()}`;
+
   // Push to leaderboard VPS
   lb.tournamentStart({
     id:      state.tournamentId,
-    name:    `Tournament ${new Date().toLocaleDateString()}`,
+    name:    tName,
     format:  state.format,
     players: state.players,
     bracket: state.bracket,
   });
+
+  // Publish live bracket immediately so the public leaderboard shows it
+  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: 'running', players: state.players, tournamentName: tName });
 
   dispatchReadyMatches();
 }
@@ -407,6 +413,10 @@ async function dispatchReadyMatches() {
     await chat(`${worker.username} will host: ${match.p1} vs ${match.p2}`);
     emit('match_start', { gameName, p1: match.p1, p2: match.p2, worker: worker.username, matchId: match.id });
   }
+
+  // Update live.json with the newly populated activeMatches so the
+  // public leaderboard shows which matches are running right away.
+  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: state.phase, players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
 
   if (!assignments.length) return;
 
@@ -921,10 +931,11 @@ async function overrideResult(matchId, newWinner) {
   if (!match) return { error: `Match ${matchId} not found` };
   if (!match.winner) return { error: 'Match has no result yet — use Force Win instead' };
 
-  const oldWinner = match.winner;
-  const oldLoser  = match.loser;
+  const oldWinner   = match.winner;
+  const oldLoser    = match.loser;
+  const inputWinner = newWinner;
   newWinner = [match.p1, match.p2].find(p => p?.toLowerCase() === newWinner.toLowerCase());
-  if (!newWinner) return { error: `${newWinner} is not a player in this match` };
+  if (!newWinner) return { error: `"${inputWinner}" is not a player in this match` };
   if (newWinner === oldWinner) return { error: `${newWinner} already won this match` };
 
   const newLoser  = newWinner === match.p1 ? match.p2 : match.p1;
@@ -1049,6 +1060,11 @@ async function dashboardCommand(cmd, args = []) {
     case 'forceWin':     await reportWin(args[0], 'DASHBOARD');  break;
     case 'reset':        await doReset();                        break;
     case 'reconnect':    await doReconnect(args[0]);             break;
+    case 'disconnect':
+      await shutdown();
+      state.workerPages = [];
+      emit('disconnect', {});
+      return { ok: true };
     case 'testGG': {
       const w = state.workerPages.find(p => p.username === args[0]);
       if (!w) return { error: `Worker ${args[0]} not found` };
