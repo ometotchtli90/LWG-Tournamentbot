@@ -817,8 +817,9 @@
     <div id="tabSE" style="display:block;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div style="grid-column:1/-1;">
-          <div class="field-row-label">Map Name (single map, no bans)</div>
-          <input id="seCfgMap" type="text" placeholder="Ravaged">
+          <div class="field-row-label">Map Pool (one per line)</div>
+          <textarea id="seCfgMap" rows="4" style="width:100%;background:var(--navy);border:2px solid var(--border);color:var(--white);font-family:var(--pixel);font-size:9px;padding:7px 10px;resize:vertical;outline:none;line-height:1.8;" placeholder="Ravaged"></textarea>
+          <div style="font-size:8px;color:var(--muted);margin-top:4px;">1 map = no bans &nbsp;·&nbsp; 2+ maps = players !ban until 1 remains per game</div>
         </div>
         <div>
           <div class="field-row-label">Best Of</div>
@@ -1715,7 +1716,7 @@ async function loadSettingsForm() {
     const de = fs.double_elimination || {};
 
     const seMap = document.getElementById('seCfgMap');
-    if (seMap) seMap.value = (se.mapPool || [cfgRes.mapName || 'Ravaged'])[0] || 'Ravaged';
+    if (seMap) seMap.value = (se.mapPool || [cfgRes.mapName || 'Ravaged']).join('\n');
 
     const seBo = document.getElementById('seCfgBestOf');
     if (seBo) seBo.value = String(se.bestOf || 1);
@@ -1773,16 +1774,17 @@ async function saveSettings() {
   const workerRows  = document.querySelectorAll('.worker-field-row');
   const selectedFmt = document.querySelector('input[name="cfgFormat"]:checked')?.value || 'single_elimination';
 
-  const seMap   = (document.getElementById('seCfgMap')?.value || 'Ravaged').trim();
+  const sePool  = (document.getElementById('seCfgMap')?.value || 'Ravaged')
+                    .split('\n').map(l => l.trim()).filter(Boolean);
   const seBestOf = parseInt(document.getElementById('seCfgBestOf')?.value || '1');
   const dePool  = (document.getElementById('deCfgMapPool')?.value || '')
                     .split('\n').map(l => l.trim()).filter(Boolean);
   const deBestOf = parseInt(document.getElementById('deCfgBestOf')?.value || '3');
 
-  // mapName = whichever format is active (used as fallback in worker)
+  // mapName = first map of whichever format is active (used as fallback in worker)
   const mapName = selectedFmt === 'double_elimination'
     ? (dePool[0] || 'Ravaged')
-    : seMap;
+    : (sePool[0] || 'Ravaged');
 
   const accounts = {
     controller: {
@@ -1804,7 +1806,7 @@ async function saveSettings() {
     bracketFormat:    selectedFmt,
     formatSettings: {
       single_elimination: {
-        mapPool: [seMap],
+        mapPool: sePool.length ? sePool : ['Ravaged'],
         bestOf:  seBestOf,
       },
       double_elimination: {
