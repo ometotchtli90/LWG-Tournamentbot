@@ -34,77 +34,103 @@ function requiredWorkers(maxPlayers) {
 // ═══════════════════════════════════════════════════════════
 
 function buildSingleElim(players) {
-  const seeded   = shuffle(players);
-  const size     = nextPow2(seeded.length);
-  const byeCount = size - seeded.length;
+  const seeded = shuffle(players);
+  const n      = seeded.length;
+  const isPow2 = n > 1 && (n & (n - 1)) === 0;
 
-  const byePlayers = seeded.slice(0, byeCount);
-  const r1Players  = seeded.slice(byeCount);
+  if (isPow2) {
+    // Perfect power-of-2 — clean bracket with no play-in round
+    const rounds = [];
+    const r0 = [];
+    for (let i = 0; i < seeded.length; i += 2) {
+      r0.push(makeMatch(seeded[i], seeded[i + 1], { bracket: 'SE', roundIdx: 0, matchIdx: r0.length }));
+    }
+    rounds.push(r0);
+    let prev = r0, ri = 1;
+    while (prev.length > 1) {
+      const r = [];
+      for (let i = 0; i < prev.length / 2; i++) {
+        r.push(makeMatch(null, null, { bracket: 'SE', roundIdx: ri, matchIdx: i }));
+      }
+      rounds.push(r);
+      prev = r; ri++;
+    }
+    return { format: 'single_elimination', rounds, eliminated: [], byeSeeds: [], hasPlayIn: false };
+  }
+
+  // ── Non-power-of-2: play-in round instead of BYEs ────────
+  // Formula:
+  //   lowerPow2  = largest 2^k ≤ n
+  //   excess     = n - lowerPow2          (play-in winner slots needed in R1)
+  //   playInCount= excess * 2             (players in play-in round)
+  //   directCount= n - playInCount        (players entering R1 directly)
+  //
+  // Example — 9 players:  lowerPow2=8, excess=1, playInCount=2, directCount=7
+  //   R0: 1 match  (only 2 players get an extra game)
+  //   R1: 4 matches (7 direct seeds + 1 play-in winner = 8 slots)
+  const lowerPow2    = nextPow2(n) >> 1;
+  const excess       = n - lowerPow2;
+  const playInCount  = excess * 2;
+  const directCount  = n - playInCount;
+  const directSeeds  = seeded.slice(0, directCount);
+  const playInPlayers = seeded.slice(directCount);
 
   const rounds = [];
 
-  // ── Round 1 ──────────────────────────────────────────────
-  // Only the non-bye players play here. We need to track exactly
-  // which R2 slot each R1 winner should advance into.
-  const r1 = [];
-  for (let i = 0; i < r1Players.length; i += 2) {
-    r1.push(makeMatch(r1Players[i], r1Players[i + 1], { bracket: 'SE', roundIdx: 0, matchIdx: r1.length }));
+  // ── R0: Play-in round ────────────────────────────────────
+  const r0 = [];
+  for (let i = 0; i < playInPlayers.length; i += 2) {
+    r0.push(makeMatch(playInPlayers[i], playInPlayers[i + 1],
+      { bracket: 'SE', roundIdx: 0, matchIdx: r0.length }));
   }
-  if (r1.length > 0) rounds.push(r1);
+  rounds.push(r0);
 
-  // ── Build subsequent rounds ──────────────────────────────
-  let prevSize = byeCount + r1.length;
-  let ri = rounds.length;
+  // ── R1: Main first round (lowerPow2 players) ─────────────
+  const r1 = [];
+  for (let i = 0; i < lowerPow2 / 2; i++) {
+    r1.push(makeMatch(null, null, { bracket: 'SE', roundIdx: 1, matchIdx: i }));
+  }
+  // Fill left side with direct seeds (best seeds skip play-in)
+  let dIdx = 0;
+  for (let mi = 0; mi < r1.length && dIdx < directSeeds.length; mi++) {
+    if (!r1[mi].p1) r1[mi].p1 = directSeeds[dIdx++];
+    if (dIdx < directSeeds.length && !r1[mi].p2) r1[mi].p2 = directSeeds[dIdx++];
+  }
+  // Wire play-in winners to the remaining empty R1 slots
+  let piIdx = 0;
+  for (let mi = 0; mi < r1.length && piIdx < r0.length; mi++) {
+    if (!r1[mi].p1) {
+      r0[piIdx].nextMatchIdx  = mi;
+      r0[piIdx].nextMatchSlot = 'p1';
+      piIdx++;
+    }
+    if (piIdx < r0.length && !r1[mi].p2) {
+      r0[piIdx].nextMatchIdx  = mi;
+      r0[piIdx].nextMatchSlot = 'p2';
+      piIdx++;
+    }
+  }
+  rounds.push(r1);
 
-  while (prevSize > 1) {
-    const matchCount = prevSize / 2;
+  // ── Subsequent rounds (R2, R3 … Final) ──────────────────
+  let prev = r1, ri = 2;
+  while (prev.length > 1) {
     const r = [];
-    for (let i = 0; i < matchCount; i++) {
+    for (let i = 0; i < prev.length / 2; i++) {
       r.push(makeMatch(null, null, { bracket: 'SE', roundIdx: ri, matchIdx: i }));
     }
     rounds.push(r);
-
-    const isFirstRealRound = (byeCount > 0 && ri === 1) || (byeCount === 0 && ri === 0);
-    if (isFirstRealRound && byeCount > 0) {
-      for (let i = 0; i < byePlayers.length; i++) {
-        const matchIdx = Math.floor(i / 2);
-        const slot     = i % 2 === 0 ? 'p1' : 'p2';
-        if (r[matchIdx]) r[matchIdx][slot] = byePlayers[i];
-      }
-
-      let r1WinnerIdx = 0;
-      for (let mi = 0; mi < r.length && r1WinnerIdx < r1.length; mi++) {
-        if (!r[mi].p1) {
-          r1[r1WinnerIdx].nextMatchIdx  = mi;
-          r1[r1WinnerIdx].nextMatchSlot = 'p1';
-          r[mi].p1 = '__R1_WINNER__';
-          r1WinnerIdx++;
-        }
-        if (r1WinnerIdx < r1.length && !r[mi].p2) {
-          r1[r1WinnerIdx].nextMatchIdx  = mi;
-          r1[r1WinnerIdx].nextMatchSlot = 'p2';
-          r[mi].p2 = '__R1_WINNER__';
-          r1WinnerIdx++;
-        }
-      }
-      for (const m of r) {
-        if (m.p1 === '__R1_WINNER__') m.p1 = null;
-        if (m.p2 === '__R1_WINNER__') m.p2 = null;
-      }
-    }
-
-    prevSize = matchCount;
-    ri++;
+    prev = r; ri++;
   }
 
-  return { format: 'single_elimination', rounds, eliminated: [], byeSeeds: byePlayers };
+  return { format: 'single_elimination', rounds, eliminated: [], byeSeeds: directSeeds, hasPlayIn: true };
 }
 
 function applyWinSingle(bracket, match, winner) {
   const loser  = match.p1 === winner ? match.p2 : match.p1;
   match.winner = winner;
   match.loser  = loser;
-  if (loser && loser !== 'BYE') bracket.eliminated.push(loser);
+  if (loser && loser !== 'BYE' && !bracket.eliminated.includes(loser)) bracket.eliminated.push(loser);
 
   const nextRi = match.roundIdx + 1;
   if (nextRi < bracket.rounds.length) {
@@ -431,11 +457,11 @@ function applyWinDouble(bracket, match, winner) {
     _placeInto(bracket, match._winNext, winner);
 
   } else if (match.bracket === 'L') {
-    if (loser) bracket.eliminated.push(loser);
+    if (loser && !bracket.eliminated.includes(loser)) bracket.eliminated.push(loser);
     _placeInto(bracket, match._winNext, winner);
 
   } else if (match.bracket === 'GF') {
-    if (loser) bracket.eliminated.push(loser);
+    if (loser && !bracket.eliminated.includes(loser)) bracket.eliminated.push(loser);
     bracket.gf[0].winner = winner;
     bracket.gf[0].loser  = loser;
   }
@@ -642,12 +668,14 @@ function getRoundName(match, bracket) {
   if (!match) return '';
   const fmt = bracket.format;
   if (fmt === 'single_elimination') {
+    if (match.roundIdx === 0 && bracket.hasPlayIn) return 'Play-In';
     const total = bracket.rounds.length;
     const r     = total - match.roundIdx;
     if (r === 1) return 'Grand Final';
     if (r === 2) return 'Semi-Finals';
     if (r === 3) return 'Quarter-Finals';
-    return `Round ${match.roundIdx + 1}`;
+    const mainRi = bracket.hasPlayIn ? match.roundIdx : match.roundIdx + 1;
+    return `Round ${mainRi}`;
   }
   if (fmt === 'double_elimination') {
     if (match.bracket === 'GF') return 'Grand Final';
@@ -662,6 +690,46 @@ function getRoundName(match, bracket) {
 // the real player. Loops until no more changes (handles chains).
 // Called after every applyWin so disqualification cascades resolve immediately.
 function resolvePendingByes(bracket) {
+  // ── Single elimination BYE resolution ──────────────────────
+  // Handles 'BYE' propagated by both-player-no-show into a play-in or
+  // regular SE match. Auto-advances the real player (walkover) or chains
+  // BYEs forward until a real player is found or the final is reached.
+  if (bracket.format === 'single_elimination') {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const round of bracket.rounds) {
+        for (const m of round) {
+          if (!m || m.winner) continue;
+          const p1Bye = m.p1 === 'BYE';
+          const p2Bye = m.p2 === 'BYE';
+          if (!p1Bye && !p2Bye) continue;
+
+          const real = p1Bye ? m.p2 : m.p1;
+          if (!real || real === 'BYE') {
+            // Both slots BYE — propagate BYE onward
+            m.winner = 'BYE'; m.loser = 'BYE';
+          } else {
+            // One real player — walkover
+            m.winner = real;
+            m.loser  = 'BYE';
+          }
+          // Wire result to next round slot
+          const nextRi = m.roundIdx + 1;
+          if (nextRi < bracket.rounds.length) {
+            const nextMi   = m.nextMatchIdx !== undefined ? m.nextMatchIdx : Math.floor(m.matchIdx / 2);
+            const nextSlot = m.nextMatchSlot || (m.matchIdx % 2 === 0 ? 'p1' : 'p2');
+            const next = bracket.rounds[nextRi]?.[nextMi];
+            if (next && !next.winner) next[nextSlot] = m.winner;
+          }
+          changed = true;
+        }
+      }
+    }
+    return;
+  }
+
+  // ── Double elimination BYE resolution ───────────────────────
   if (bracket.format !== 'double_elimination') return;
   let changed = true;
   while (changed) {

@@ -266,16 +266,30 @@
   }
 
   /* ── Bracket ──────────────────────────────── */
-  #bracketArea {
-    display: flex; gap: 0; align-items: flex-start;
-    overflow-x: auto; padding-bottom: 8px; min-height: 180px;
+  #bracketArea { overflow-x: auto; padding-bottom: 8px; min-height: 180px; }
+
+  /* Challonge-style grid layout */
+  .bk-wrap  { position: relative; display: inline-flex; min-width: 100%; padding: 4px 0 8px; }
+  .bk-svg   { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+  .bk-cols  { display: flex; align-items: flex-start; }
+  .bk-col   { display: flex; flex-direction: column; flex-shrink: 0; width: 190px; }
+  .bk-col-hdr {
+    font-family: var(--pixel); font-size: 8px; text-transform: uppercase;
+    letter-spacing: .08em; text-align: center; padding: 4px 20px 8px;
   }
+  .bk-col-hdr.done    { color: var(--green); }
+  .bk-col-hdr.current { color: var(--gold); border-bottom: 1px solid var(--border); }
+  .bk-col-hdr.future  { color: var(--blue-dim); }
+  .bk-cells { display: flex; flex-direction: column; }
+  /* Each cell is a vertically-centered slot — height set by JS */
+  .bk-cell  { display: flex; align-items: center; flex-shrink: 0; padding: 0 21px; box-sizing: border-box; }
+  .match-card { width: 148px; flex-shrink: 0; }
+
+  /* Legacy round-title kept for DE/Swiss which still use old renderer */
   .bracket-round { flex-shrink: 0; min-width: 148px; }
   .round-title {
-    font-family: var(--pixel);
-    font-size: 8px; text-transform: uppercase;
-    letter-spacing: .08em; text-align: center; margin-bottom: 8px;
-    padding: 4px 0;
+    font-family: var(--pixel); font-size: 8px; text-transform: uppercase;
+    letter-spacing: .08em; text-align: center; margin-bottom: 8px; padding: 4px 0;
   }
   .round-title.current { color: var(--gold); border: 1px solid var(--border); }
   .round-title.done    { color: var(--green); }
@@ -1527,7 +1541,7 @@ function renderBracket() {
     const header = canOverride
       ? `<div style="display:flex;align-items:center;padding:2px 9px 0;min-height:18px;">${overrideBtn}</div>`
       : '';
-    return `<div class="match-card ${isActive && !w ? 'active' : ''}">${header}${slot(p1)}${slot(p2)}</div>`;
+    return `<div class="match-card ${isActive && !w ? 'active' : ''}" data-mid="${m.id}">${header}${slot(p1)}${slot(p2)}</div>`;
   }
 
   function roundCol(title, matches, cls) {
@@ -1538,13 +1552,37 @@ function renderBracket() {
   }
 
   if (fmt === 'single_elimination') {
-    const total = S.bracket.rounds?.length || 1;
-    el.innerHTML = (S.bracket.rounds || []).map((round, ri) => {
-      const r   = total - ri;
-      const name = r===1?'Final':r===2?'Semis':r===3?'Quarters':`Round ${ri+1}`;
-      const cls  = round.every(m=>m.winner) ? 'done' : round.some(m=>!m.winner&&m.p1&&m.p2) ? 'current' : 'future';
-      return roundCol(name, round, cls);
-    }).join('');
+    const rounds = S.bracket.rounds || [];
+    const total  = rounds.length;
+    const hasPlayIn = S.bracket.hasPlayIn;
+
+    const colName = (ri) => {
+      if (ri === 0 && hasPlayIn) return 'Play-In';
+      const r = total - ri;
+      if (r === 1) return 'Final';
+      if (r === 2) return 'Semis';
+      if (r === 3) return 'Quarters';
+      return hasPlayIn ? `Round ${ri}` : `Round ${ri + 1}`;
+    };
+    const colCls = (round) =>
+      round.every(m => m.winner) ? 'done'
+      : round.some(m => !m.winner && m.p1 && m.p2) ? 'current' : 'future';
+
+    let html = '<div class="bk-wrap"><svg class="bk-svg"></svg><div class="bk-cols">';
+    rounds.forEach((round, ri) => {
+      const cls = colCls(round);
+      html += `<div class="bk-col"><div class="bk-col-hdr ${cls}">${colName(ri)}</div>`;
+      html += `<div class="bk-cells" data-ri="${ri}">`;
+      round.forEach((m, mi) => {
+        html += `<div class="bk-cell" data-ri="${ri}" data-mi="${mi}">${matchCard(m)}</div>`;
+      });
+      html += `</div></div>`;
+    });
+    html += '</div></div>';
+    el.innerHTML = html;
+
+    // After DOM settles, set cell heights and draw SVG connector lines
+    requestAnimationFrame(() => layoutBracketSE(el, rounds));
 
   } else if (fmt === 'double_elimination') {
     let html = '<div style="display:flex;flex-direction:column;gap:20px;width:100%;">';
@@ -1577,6 +1615,81 @@ function renderBracket() {
     el.innerHTML = html;
 
   }
+}
+
+// ── SE bracket layout: set cell heights then draw SVG lines ──
+function layoutBracketSE(container, rounds) {
+  if (!rounds.length) return;
+  const firstCard = container.querySelector('.bk-cell[data-ri="0"] .match-card');
+  if (!firstCard) return;
+  const GAP  = 8;
+  const UNIT = firstCard.offsetHeight + GAP;   // height of one "slot"
+
+  // Set each cell's height = UNIT * 2^ri  (card is flex-centered inside)
+  container.querySelectorAll('.bk-cell').forEach(cell => {
+    const ri = parseInt(cell.dataset.ri, 10);
+    cell.style.height = (UNIT * Math.pow(2, ri)) + 'px';
+  });
+
+  // Draw connector lines after layout settles
+  requestAnimationFrame(() => drawBracketSELines(container, rounds));
+}
+
+function drawBracketSELines(container, rounds) {
+  const wrap = container.querySelector('.bk-wrap');
+  const svg  = container.querySelector('.bk-svg');
+  if (!wrap || !svg) return;
+
+  const base = wrap.getBoundingClientRect();
+  const my = el => { const r = el.getBoundingClientRect(); return r.top  + r.height / 2 - base.top; };
+  const rx = el => el.getBoundingClientRect().right  - base.left;
+  const lx = el => el.getBoundingClientRect().left   - base.left;
+
+  const paths = [];
+
+  for (let ri = 0; ri < rounds.length - 1; ri++) {
+    const round = rounds[ri];
+
+    // Group each source match by which next-round match it feeds into
+    const byTarget = {};
+    round.forEach((m, mi) => {
+      const nextMi = m.nextMatchIdx !== undefined ? m.nextMatchIdx : Math.floor(mi / 2);
+      (byTarget[nextMi] = byTarget[nextMi] || []).push(m);
+    });
+
+    Object.entries(byTarget).forEach(([nextMiStr, srcs]) => {
+      const nextMatch = rounds[ri + 1]?.[+nextMiStr];
+      if (!nextMatch) return;
+      const nextEl = container.querySelector(`[data-mid="${nextMatch.id}"]`);
+      if (!nextEl) return;
+      const x2 = lx(nextEl), yn = my(nextEl);
+
+      if (srcs.length === 2) {
+        // Standard pair: draw ┐└ bracket connector
+        const topEl = container.querySelector(`[data-mid="${srcs[0].id}"]`);
+        const botEl = container.querySelector(`[data-mid="${srcs[1].id}"]`);
+        if (!topEl || !botEl) return;
+        const x1t = rx(topEl), yt = my(topEl);
+        const x1b = rx(botEl), yb = my(botEl);
+        const mx  = x1t + (x2 - x1t) / 2;
+        // Top stub → vertical bar → bottom stub, then horizontal to next match
+        paths.push(`M${x1t},${yt} H${mx} V${yb} M${x1b},${yb} H${mx} M${mx},${yn} H${x2}`);
+      } else {
+        // Single connection (play-in winner → specific R1 slot)
+        const srcEl = container.querySelector(`[data-mid="${srcs[0].id}"]`);
+        if (!srcEl) return;
+        const x1 = rx(srcEl), y1 = my(srcEl);
+        const mx = x1 + (x2 - x1) / 2;
+        paths.push(`M${x1},${y1} H${mx} V${yn} H${x2}`);
+      }
+    });
+  }
+
+  svg.setAttribute('width',  wrap.scrollWidth);
+  svg.setAttribute('height', wrap.scrollHeight);
+  svg.innerHTML = paths.length
+    ? `<path d="${paths.join(' ')}" fill="none" stroke="rgba(68,136,255,0.3)" stroke-width="1.5" stroke-linejoin="round"/>`
+    : '';
 }
 
 function renderActiveMatches() {

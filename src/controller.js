@@ -741,9 +741,7 @@ async function checkWalkoverChampion() {
   emit('bracket', { bracket: state.bracket });
   lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: {}, phase: 'done', players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
 
-  const elim   = [...(state.bracket.eliminated || [])];
-  const second = elim[elim.length - 1] || null;
-  const third  = elim[elim.length - 2] || null;
+  const { second, third } = computePlacements(state.bracket);
   lb.tournamentEnd({ id: state.tournamentId, champion: champ, second, third, bracket: state.bracket });
   lbExport.recordTournament({
     id:       state.tournamentId,
@@ -849,10 +847,8 @@ async function applyResult(match, winner, loser, method, gameName, score = null,
     state.phase = 'done';
     emit('phase', { phase: 'done', champion: champ });
 
-    // Determine 2nd and 3rd from eliminated list (last two eliminated = 3rd, 2nd)
-    const elim   = [...(state.bracket.eliminated || [])];
-    const second = elim[elim.length - 1] || null;
-    const third  = elim[elim.length - 2] || null;
+    // Derive 2nd and 3rd from bracket structure (more reliable than eliminated order)
+    const { second, third } = computePlacements(state.bracket);
     lb.tournamentEnd({ id: state.tournamentId, champion: champ, second, third, bracket: state.bracket });
     lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: {}, phase: 'done', players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
     lbExport.recordTournament({
@@ -1023,6 +1019,47 @@ async function overrideResult(matchId, newWinner) {
 
   await chat(`🔄 Result override: ${match.p1} vs ${match.p2} → ${newWinner} wins (was ${oldWinner})`);
   return { ok: true };
+}
+
+// ── Placement helper ──────────────────────────────────────
+// Derives 2nd and 3rd place from the bracket structure rather than
+// the eliminated[] array, which can have ordering issues or duplicates.
+function computePlacements(bracket) {
+  if (!bracket) return { second: null, third: null };
+  const fmt = bracket.format;
+
+  if (fmt === 'single_elimination') {
+    const rounds  = bracket.rounds || [];
+    const final   = rounds[rounds.length - 1]?.[0];
+    if (!final?.winner) return { second: null, third: null };
+    const second  = (final.loser && final.loser !== 'BYE') ? final.loser : null;
+    // Third = loser of the semi-final round (second-to-last)
+    let third = null;
+    if (rounds.length >= 2) {
+      const semis = rounds[rounds.length - 2];
+      for (const m of semis) {
+        if (m.loser && m.loser !== 'BYE' && m.loser !== second) {
+          third = m.loser; break;
+        }
+      }
+    }
+    return { second, third };
+  }
+
+  if (fmt === 'double_elimination') {
+    const gf     = bracket.gf?.[0];
+    if (!gf?.winner) return { second: null, third: null };
+    const second = (gf.loser && gf.loser !== 'BYE') ? gf.loser : null;
+    // Third = loser of the last LB round (LB finalist who didn't make it to GF)
+    const lb     = bracket.lb || [];
+    const lbFinal = lb[lb.length - 1]?.[0];
+    const third  = (lbFinal?.loser && lbFinal.loser !== 'BYE') ? lbFinal.loser : null;
+    return { second, third };
+  }
+
+  // Swiss / unknown — fall back to eliminated order
+  const elim = bracket.eliminated || [];
+  return { second: elim[elim.length - 1] || null, third: elim[elim.length - 2] || null };
 }
 
 // ── Dashboard API ─────────────────────────────────────────
