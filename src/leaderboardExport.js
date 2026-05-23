@@ -841,6 +841,52 @@ function exportToFile(outputPath) {
   return outputPath;
 }
 
+// ── Recalculate all player stats from tournament history ──
+// Recomputes wins/losses/titles/top3/matches/points/gamesPlayed from scratch
+// by replaying every recorded tournament.  Called after a data correction is
+// applied (e.g. wrong second/third placement fixed via commit+redeploy) so
+// the aggregate stats always stay consistent with the tournament records.
+function recalculateAllStats(data) {
+  const newPlayers = {};
+  for (const t of (data.tournaments || [])) {
+    const { id, champion, second, third, matchLog, players: tPlayers } = t;
+    // Per-match wins / losses
+    for (const entry of (matchLog || [])) {
+      const { winner, loser } = entry;
+      if (!winner || winner === 'BYE') continue;
+      for (const p of [winner, loser]) {
+        if (!p || p === 'BYE') continue;
+        if (!newPlayers[p]) newPlayers[p] = { wins:0, losses:0, titles:0, top3:0, matches:0, points:0, gamesPlayed:[] };
+      }
+      if (winner && winner !== 'BYE') {
+        newPlayers[winner].wins++;
+        newPlayers[winner].matches++;
+        if (!newPlayers[winner].gamesPlayed.includes(id)) newPlayers[winner].gamesPlayed.push(id);
+      }
+      if (loser && loser !== 'BYE') {
+        newPlayers[loser].losses++;
+        newPlayers[loser].matches++;
+        if (!newPlayers[loser].gamesPlayed.includes(id)) newPlayers[loser].gamesPlayed.push(id);
+      }
+    }
+    // Points + placement credit (mirrors recordTournament logic exactly)
+    const participated = (tPlayers || []).filter(p => p && p !== 'BYE');
+    const placements   = [champion, second, third].filter(Boolean).filter(p => p !== 'BYE');
+    participated.forEach(p => {
+      if (!newPlayers[p]) newPlayers[p] = { wins:0, losses:0, titles:0, top3:0, matches:0, points:0, gamesPlayed:[] };
+      const place = placements.indexOf(p) + 1;
+      const pts   = place > 0 ? (PLACE_POINTS[place] || DEFAULT_POINTS) : DEFAULT_POINTS;
+      newPlayers[p].points = (newPlayers[p].points || 0) + pts;
+      if (!newPlayers[p].gamesPlayed.includes(id)) newPlayers[p].gamesPlayed.push(id);
+    });
+    if (champion && champion !== 'BYE') { newPlayers[champion].titles++; newPlayers[champion].top3++; }
+    if (second   && second   !== 'BYE' && second !== champion) newPlayers[second].top3++;
+    if (third    && third    !== 'BYE' && third  !== champion && third !== second) newPlayers[third].top3++;
+  }
+  data.players = newPlayers;
+  return data;
+}
+
 // ── Write data.json to leaderboard folder ────────────────
 // Keeps leaderboard/data.json (web-served copy) in sync with the
 // persistent master at data/leaderboard.json.
@@ -942,4 +988,4 @@ function publishToGitHub({ repoDir, branch = 'main', filename = 'data.json', com
   }
 }
 
-module.exports = { recordTournament, exportToFile, generateHTML, loadData, publishToGitHub, writeDataJson, writeLiveJson };
+module.exports = { recordTournament, recalculateAllStats, exportToFile, generateHTML, loadData, publishToGitHub, writeDataJson, writeLiveJson };

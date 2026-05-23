@@ -61,24 +61,40 @@ function startServer() {
         fs.copyFileSync(imagePath, masterPath);
         console.log(`  Image has ${newInImage.length} new tournament(s) not in master — promoting image to master`);
       } else {
-        // Scenario C — master has all tournament IDs; but still merge any score/replayFiles
-        // fields that were backfilled in the image but are absent from the live master.
-        // This lets a committed backfill propagate to the persistent volume on redeploy
-        // without overwriting any live data the master already has.
-        let mergeCount = 0;
+        // Scenario C — master has all tournament IDs; merge any fields that were
+        // backfilled or corrected in the image but differ from the live master.
+        // Two types of merge:
+        //   1. Tournament-level placement fields (champion/second/third/name) — allows a
+        //      committed data correction to propagate to the persistent volume on redeploy.
+        //   2. Match-level score/replayFiles — post-hoc backfills that were added to the
+        //      image after the live match was played.
+        // When any placement field changes, player stats are recalculated from scratch
+        // so counts (top3, titles, points) stay consistent with the corrected data.
+        let mergeCount  = 0;
+        let placementChanged = false;
         for (const imgT of (imageData.tournaments || [])) {
           const mstrT = (masterData.tournaments || []).find(t => t.id === imgT.id);
           if (!mstrT) continue;
+          // 1. Patch tournament-level placement / metadata fields
+          for (const field of ['champion', 'second', 'third', 'name']) {
+            if (imgT[field] !== undefined && imgT[field] !== mstrT[field]) {
+              mstrT[field] = imgT[field];
+              mergeCount++;
+              placementChanged = true;
+            }
+          }
+          // 2. Patch match-level score / replayFiles
           for (const imgM of (imgT.matchLog || [])) {
             const mstrM = (mstrT.matchLog || []).find(m => m.matchId === imgM.matchId);
             if (!mstrM) continue;
-            if (!mstrM.score && imgM.score)                                           { mstrM.score = imgM.score; mergeCount++; }
+            if (!mstrM.score && imgM.score)                                                     { mstrM.score = imgM.score; mergeCount++; }
             if ((!mstrM.replayFiles || !mstrM.replayFiles.length) && imgM.replayFiles?.length) { mstrM.replayFiles = imgM.replayFiles; mergeCount++; }
           }
         }
         if (mergeCount > 0) {
+          if (placementChanged) lbExport.recalculateAllStats(masterData);
           fs.writeFileSync(masterPath, JSON.stringify(masterData, null, 2), 'utf8');
-          console.log(`  Merged ${mergeCount} score/replayFiles field(s) from image into master`);
+          console.log(`  Merged ${mergeCount} field(s) from image into master${placementChanged ? ' (player stats recalculated)' : ''}`);
         }
         // Scenario C end — master kept (with any newly merged fields)
       }

@@ -256,28 +256,9 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   const gameDurationMs = Date.now() - gameStartTime;
   log(`Result: winner=${result.winner} method=${result.method} duration=${Math.round(gameDurationMs/1000)}s`);
 
-  // ── 10. Leave the game ────────────────────────────────────
-  log('Leaving game...');
-  try {
-    // Click the menu/options button to open the options window
-    await page.waitForSelector('#ingameMenuButton', { timeout: 10000 });
-    await jsClick(page, '#ingameMenuButton');
-    await page.waitForTimeout(800);
-    // Click the Quit button inside the options window
-    await page.waitForSelector('#optionsQuitButton', { timeout: 5000 });
-    await jsClick(page, '#optionsQuitButton');
-    await page.waitForTimeout(1500);
-    log('Left game via optionsQuitButton.');
-  } catch (_) {
-    log('optionsQuitButton not found — trying backButton fallback');
-    try { await jsClick(page, '#backButton'); await page.waitForTimeout(1500); } catch (_) {}
-  }
-
-  // ── 11. Save replay then close stats screen ──────────────
-  log('Saving replay and closing stats screen...');
+  // ── 10 + 11. Leave game, save replay, return to lobby ───────
+  // Build the replay filename before anything else — shared by all save paths.
   let replayFile = null;
-
-  // Build filename up-front — shared by both primary and fallback attempts
   const replayFilename = replayOpts.replayDir ? (() => {
     const date   = new Date().toISOString().slice(0, 10);
     const round  = (replayOpts.roundName || 'Match').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '-');
@@ -288,46 +269,89 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   const replaySavePath = replayFilename
     ? require('path').join(replayOpts.replayDir, replayFilename) : null;
 
-  try {
-    await page.waitForSelector('#statisticsWindow', { timeout: 8000 });
-
-    // ── Primary: #saveReplayButton on the stats screen ────
-    if (replaySavePath) {
-      const replayBtn = await page.$('#saveReplayButton');
-      if (replayBtn) {
-        try {
-          const downloadPromise = page.waitForEvent('download', { timeout: 10000 });
-          await replayBtn.evaluate(el => el.click());
-          const download = await downloadPromise;
-          await download.saveAs(replaySavePath);
-          replayFile = replayFilename;
-          log(`Replay saved (stats screen): ${replayFilename}`);
-        } catch (re) {
-          log(`Stats-screen replay save failed: ${re.message} — will try fallback`);
-        }
-      }
+  // Helper: save replay from the stats screen's Save button
+  const tryStatsScreenSave = async () => {
+    if (!replaySavePath) return;
+    const replayBtn = await page.$('#saveReplayButton').catch(() => null);
+    if (!replayBtn) { log('No #saveReplayButton on stats screen.'); return; }
+    try {
+      const dlPromise = page.waitForEvent('download', { timeout: 10000 });
+      await replayBtn.evaluate(el => el.click());
+      const dl = await dlPromise;
+      await dl.saveAs(replaySavePath);
+      replayFile = replayFilename;
+      log(`Replay saved (stats screen): ${replayFilename}`);
+    } catch (re) {
+      log(`Stats-screen replay save failed: ${re.message}`);
     }
+  };
 
-    // ── Close stats screen ────────────────────────────────
-    let statsClosed = false;
-    for (let attempt = 0; attempt < 5 && !statsClosed; attempt++) {
+  // Helper: close the stats screen
+  const closeStats = async () => {
+    for (let i = 0; i < 5; i++) {
       await page.waitForTimeout(400);
-      try {
-        const closeBtn = await page.$('#statisticsWindow button.closeButton');
-        if (closeBtn) { await closeBtn.evaluate(el => el.click()); statsClosed = true; }
-      } catch (_) {}
+      const btn = await page.$('#statisticsWindow button.closeButton').catch(() => null);
+      if (btn) { await btn.evaluate(el => el.click()); await page.waitForTimeout(600); log('Stats screen closed.'); return; }
     }
-    if (statsClosed) { log('Stats screen closed.'); await page.waitForTimeout(600); }
-    else              { log('Could not close stats screen — proceeding anyway.'); }
-  } catch (_) {
-    log('No stats screen found, continuing...');
+    log('Could not close stats screen — proceeding anyway.');
+  };
+
+  // Normal LWG flow: bot is still in-game (spectating) when watchForResult resolves.
+  // It must actively quit the game; the stats screen then appears in the lobby.
+  // We quit first, then wait for the stats screen to save the replay.
+  // Defensive fallbacks handle the rare cases where the game already returned the bot
+  // to the lobby (e.g. disconnect or very fast game-over transition).
+  await page.waitForTimeout(1000);
+
+  const uiState = await page.evaluate(() => {
+    const stats  = document.getElementById('statisticsWindow');
+    const ingame = document.getElementById('ingameMenuButton');
+    if (stats  && stats.offsetParent  !== null) return 'stats';
+    if (ingame && ingame.offsetParent !== null) return 'ingame';
+    return 'lobby';
+  }).catch(() => 'lobby');
+  log(`Post-game UI state: ${uiState}`);
+
+  if (uiState === 'ingame') {
+    // ── Primary (normal) path ────────────────────────────────
+    // Bot is still spectating — quit, then the lobby shows the stats screen.
+    try {
+      await jsClick(page, '#ingameMenuButton');
+      await page.waitForTimeout(800);
+      await page.waitForSelector('#optionsQuitButton', { timeout: 5000 });
+      await jsClick(page, '#optionsQuitButton');
+      await page.waitForTimeout(1500);
+      log('Left game via optionsQuitButton.');
+    } catch (_) {
+      log('optionsQuitButton not found — trying #backButton');
+      try { await jsClick(page, '#backButton'); await page.waitForTimeout(1500); } catch (_) {}
+    }
+    // Stats screen appears in lobby after leaving — save replay from there.
+    try {
+      await page.waitForSelector('#statisticsWindow', { timeout: 10000 });
+      await tryStatsScreenSave();
+      await closeStats();
+    } catch (_) {
+      log('No stats screen appeared after quitting — will try replay list fallback.');
+    }
+
+  } else if (uiState === 'stats') {
+    // Rare: game already transitioned the spectator to the stats screen before we checked.
+    log('Already on stats screen — saving replay directly.');
+    await tryStatsScreenSave();
+    await closeStats();
+
+  } else {
+    // Bot is already back in lobby (fast game-over / disconnect path).
+    log('Already in lobby after game ended — will try replay list fallback.');
   }
 
-  // ── Fallback: find & save from #replaysListWindow ────────
-  // Only attempted when primary failed or stats screen never appeared.
-  // The replay list always has the most recent game at the top, so
-  // searching by both player names finds the right one reliably.
+  // ── Fallback: save from the replay-list panel ─────────────
+  // Runs when neither the stats-screen button nor a pre-existing stats screen
+  // produced a saved file (e.g. LWG returned the spectator straight to lobby).
+  // Wait 2s first to give LWG time to finish writing the replay file.
   if (!replayFile && replaySavePath) {
+    await page.waitForTimeout(2000);
     log('Attempting fallback replay save from replay list...');
     try {
       await ph.saveReplayFromList(page, p1, p2, replaySavePath);
