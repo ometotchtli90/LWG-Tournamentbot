@@ -872,6 +872,15 @@
     <span class="save-status" id="saveStatus">✓ Saved</span>
   </div>
 
+  <!-- Data management -->
+  <div class="card">
+    <div class="settings-section-title">Data</div>
+    <div style="font-size:9px;color:var(--blue-dim);margin-bottom:10px;line-height:2;">
+      Download the live leaderboard data as <code>data.json</code>. To correct a past tournament, edit the file and commit it as <code>leaderboard/data.json</code>, then redeploy — the server will automatically patch the persistent data on startup.
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="doDownloadData()">⬇ Download data.json</button>
+  </div>
+
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
