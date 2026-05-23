@@ -606,63 +606,97 @@ function splitMessage(text, maxLen) {
 }
 
 // ── Wait for map bans from two players in lobby chat ────────
-// mapPool: string[]  — all available maps
-// p1, p2: string     — the two players who must each ban one map
-// timeoutMs: number
-// sendMsg: async fn(text) — sends a message to the lobby/game chat
-// watchFn: the correct watch function (watchLobbyChat or watchLobbyGameChat)
+// mapPool:    string[]  — all available maps (original pool)
+// bansNeeded: number    — total bans before the phase ends (pool.length - bestOf)
+// p1, p2:     string    — the two players; p1 always bans first
+// timeoutMs:  number
+// sendMsg:    async fn(text) — sends a message to the lobby/game chat
+// watchFn:    the correct watch function (watchLobbyChat or watchLobbyGameChat)
 //
-// Returns: { pickedMap: string, bans: { [player]: string } }
-function waitForMapBans(page, p1, p2, mapPool, timeoutMs, sendMsg, watchFn) {
+// Ban order alternates: p1, p2, p1, p2, … for bansNeeded total bans.
+//
+// Returns: { bans: [{player, map, auto?}], remaining: string[], timedOut: bool }
+function waitForMapBans(page, p1, p2, mapPool, bansNeeded, timeoutMs, sendMsg, watchFn) {
   return new Promise((resolve) => {
-    const bans    = {};
     const p1l     = p1.toLowerCase();
     const p2l     = p2.toLowerCase();
     const poolLow = mapPool.map(m => m.toLowerCase());
 
+    // Alternating turn order: p1, p2, p1, p2, … for bansNeeded total slots
+    const banOrder  = Array.from({ length: bansNeeded }, (_, i) => i % 2 === 0 ? p1l : p2l);
+    const bansDone  = [];           // { player: displayName, map: string, auto?: true }
+    const bannedLow = new Set();    // lowercase set of already-banned maps
+
+    const currentTurn = () => banOrder[bansDone.length]; // undefined when all done
+
+    const finish = (timedOut) => {
+      const remaining = mapPool.filter(m => !bannedLow.has(m.toLowerCase()));
+      resolve({ bans: bansDone, remaining, timedOut });
+    };
+
+    // Announce first turn
+    sendMsg(`🗺️ ${p1} bans first — type !ban <mapname>`).catch(() => {});
+
     const stop = watchFn(page, (username, message) => {
       const uLow = stripClanTag(username).toLowerCase();
-      if (uLow !== p1l && uLow !== p2l) return;           // ignore others
-      if (bans[uLow]) return;                              // already banned
+      if (uLow !== p1l && uLow !== p2l) return;
       if (!message.toLowerCase().startsWith('!ban ')) return;
 
+      const turn = currentTurn();
+      if (!turn) return;  // all bans already recorded
+
+      // Reject out-of-turn bans
+      if (uLow !== turn) {
+        const turnName = turn === p1l ? p1 : p2;
+        sendMsg(`❌ It's ${turnName}'s turn to ban.`).catch(() => {});
+        return;
+      }
+
       const banArg = message.slice(5).trim().toLowerCase();
-      // Find the best match in the pool (exact then startsWith then includes)
-      const matched = poolLow.indexOf(banArg) !== -1        ? mapPool[poolLow.indexOf(banArg)]
-                    : poolLow.findIndex(m => m === banArg) >= 0 ? mapPool[poolLow.findIndex(m => m === banArg)]
+      // Best-match: exact → startsWith → includes
+      const matched = poolLow.indexOf(banArg) !== -1                    ? mapPool[poolLow.indexOf(banArg)]
                     : poolLow.findIndex(m => m.startsWith(banArg)) >= 0 ? mapPool[poolLow.findIndex(m => m.startsWith(banArg))]
-                    : poolLow.findIndex(m => m.includes(banArg)) >= 0  ? mapPool[poolLow.findIndex(m => m.includes(banArg))]
+                    : poolLow.findIndex(m => m.includes(banArg)) >= 0   ? mapPool[poolLow.findIndex(m => m.includes(banArg))]
                     : null;
 
       if (!matched) {
-        sendMsg(`❌ ${username}: "${message.slice(5).trim()}" not found in map pool. Maps: ${mapPool.join(', ')}`).catch(() => {});
+        const avail = mapPool.filter(m => !bannedLow.has(m.toLowerCase()));
+        sendMsg(`❌ "${message.slice(5).trim()}" not found. Available: ${avail.join(', ')}`).catch(() => {});
         return;
       }
-      // Don't let both players ban the same map
-      const alreadyBanned = Object.values(bans);
-      if (alreadyBanned.map(b => b.toLowerCase()).includes(matched.toLowerCase())) {
-        sendMsg(`❌ ${username}: ${matched} is already banned. Pick another map.`).catch(() => {});
+      if (bannedLow.has(matched.toLowerCase())) {
+        const avail = mapPool.filter(m => !bannedLow.has(m.toLowerCase()));
+        sendMsg(`❌ ${matched} is already banned. Available: ${avail.join(', ')}`).catch(() => {});
         return;
       }
 
-      bans[uLow] = matched;
-      sendMsg(`✅ ${username} bans ${matched}.`).catch(() => {});
+      bansDone.push({ player: username, map: matched });
+      bannedLow.add(matched.toLowerCase());
+      sendMsg(`🚫 ${username} bans ${matched}.`).catch(() => {});
 
-      if (Object.keys(bans).length >= 2) {
+      if (bansDone.length >= bansNeeded) {
         clearTimeout(deadline);
         stop();
-        const remaining = mapPool.filter(m => !Object.values(bans).map(b => b.toLowerCase()).includes(m.toLowerCase()));
-        resolve({ pickedMap: remaining[0], bans: { [p1]: bans[p1l], [p2]: bans[p2l] } });
+        finish(false);
+      } else {
+        const nextTurn = currentTurn();
+        const nextName = nextTurn === p1l ? p1 : p2;
+        sendMsg(`🗺️ ${nextName}'s turn to ban.`).catch(() => {});
       }
     });
 
     const deadline = setTimeout(() => {
       stop();
-      // Auto-ban for any player who didn't respond
-      const remaining = mapPool.filter(m => !Object.values(bans).map(b => b.toLowerCase()).includes(m.toLowerCase()));
-      // If only one player banned, auto-pick first remaining for the other
-      const pickedMap = remaining[0] || mapPool[0];
-      resolve({ pickedMap, bans: { [p1]: bans[p1l] || null, [p2]: bans[p2l] || null }, timedOut: true });
+      // Auto-fill any remaining ban slots (pick first available map per slot)
+      while (bansDone.length < bansNeeded) {
+        const avail = mapPool.filter(m => !bannedLow.has(m.toLowerCase()));
+        if (!avail.length) break;
+        const turn    = currentTurn();
+        const name    = turn === p1l ? p1 : p2;
+        bansDone.push({ player: name, map: avail[0], auto: true });
+        bannedLow.add(avail[0].toLowerCase());
+      }
+      finish(true);
     }, timeoutMs);
   });
 }

@@ -226,6 +226,10 @@ async function hostMatch(page, workerName, gameName, p1, p2, onStatus, getPlayer
   await ph.sendGameChat(page, 'FIGHT!');
   await page.waitForTimeout(1200);
 
+  // ── 7b. Final guest sweep — silently kick any guests who joined
+  //        during the ready phase or countdown, right before the game loads
+  await kickGuests(page, workerName, p1, p2, { silent: true });
+
   // ── 8. Start ─────────────────────────────────────────────
   log('Starting game...');
   // Blur the chat input so it doesn't intercept the start button click
@@ -582,7 +586,8 @@ function waitForBothReady(page, p1, p2, timeoutMs) {
 }
 
 // ── Kick guest accounts from player and spectator slots ────
-async function kickGuests(page, workerName, p1, p2) {
+// silent=true skips the 5-second warning (used for the pre-start sweep)
+async function kickGuests(page, workerName, p1, p2, { silent = false } = {}) {
   const log = (msg) => console.log(`  [${workerName}] ${msg}`);
   const expected = new Set([p1.toLowerCase(), p2.toLowerCase(), workerName.toLowerCase()]);
 
@@ -598,17 +603,19 @@ async function kickGuests(page, workerName, p1, p2) {
 
     if (guests.length === 0) return;
 
-    // Warn first
-    await ph.sendGameChat(page,
-      `⚠️ Guests detected: ${guests.map(g => g.name).join(', ')} — you will be kicked in 5 seconds. Please leave.`
-    );
-    await page.waitForTimeout(5000);
+    if (!silent) {
+      // Warn first so they have a chance to leave voluntarily
+      await ph.sendGameChat(page,
+        `⚠️ Guests detected: ${guests.map(g => g.name).join(', ')} — you will be kicked in 5 seconds. Please leave.`
+      );
+      await page.waitForTimeout(5000);
+    }
 
     // Kick them
     for (const g of guests) {
       if (g.removeBtn) {
         await ph.kickPlayer(page, g.removeBtn).catch(() => {});
-        log(`Kicked guest: ${g.name}`);
+        log(`Kicked guest${silent ? ' (pre-start)' : ''}: ${g.name}`);
       }
     }
   } catch (e) {
@@ -736,8 +743,9 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
 
     // ── Method 2: status poll via controller page ────────
     // Track when each player was last seen in 'match'
-    const lastSeen = { [p1l]: null, [p2l]: null };
-    const leftAt   = { [p1l]: null, [p2l]: null };
+    const lastSeen    = { [p1l]: null, [p2l]: null };
+    const leftAt      = { [p1l]: null, [p2l]: null };
+    const everInMatch = { [p1l]: false, [p2l]: false };
 
     const statusIv = getPlayerStatus ? setInterval(async () => {
       if (resolved || ggTimer) { clearInterval(statusIv); return; } // gg already detected — don't override
@@ -749,19 +757,21 @@ function watchForResult(page, p1, p2, getPlayerStatus, onResultKnown, cancelToke
         // Log status changes
         if (s1 !== lastSeen[p1l]) {
           console.log(`  [status] ${p1}: ${lastSeen[p1l]} → ${s1}`);
+          if (s1 === 'match') everInMatch[p1l] = true;
+          // Only record leftAt when transitioning FROM 'match' — not on first poll
+          if (lastSeen[p1l] === 'match' && s1 !== 'match') leftAt[p1l] = now;
           lastSeen[p1l] = s1;
-          // If they just left 'match' (or disappeared), record when
-          if (s1 !== 'match') leftAt[p1l] = now;
         }
         if (s2 !== lastSeen[p2l]) {
           console.log(`  [status] ${p2}: ${lastSeen[p2l]} → ${s2}`);
+          if (s2 === 'match') everInMatch[p2l] = true;
+          if (lastSeen[p2l] === 'match' && s2 !== 'match') leftAt[p2l] = now;
           lastSeen[p2l] = s2;
-          if (s2 !== 'match') leftAt[p2l] = now;
         }
 
-        // Only trigger if at least one player was confirmed 'match' first
-        // (avoids false positives at the start before game loads)
-        const bothSeenInGame = lastSeen[p1l] !== null || lastSeen[p2l] !== null;
+        // Only trigger disconnect logic after at least one player has been
+        // confirmed in 'match' — prevents false positives while game loads
+        const bothSeenInGame = everInMatch[p1l] || everInMatch[p2l];
         if (!bothSeenInGame) return;
 
         const p1Left = leftAt[p1l] !== null;
@@ -799,23 +809,27 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
   let remainingMaps = [...mapPool];
 
   // ── Map ban phase ─────────────────────────────────────────
-  // Only run bans when there are MORE maps than games in the series.
-  // e.g. BO3 with exactly 3 maps → no bans (maps play in order: G1→M1, G2→M2, G3→M3)
-  //      BO3 with 4+ maps       → each player bans 1, remaining maps are played
-  // This prevents the degenerate case where bans leave only 1 map for all games.
-  if (bestOf > 1 && mapPool.length > bestOf) {
+  // bansNeeded = pool.length - bestOf: maps to remove so exactly `bestOf` remain.
+  // Examples:
+  //   BO1 + 1 map  → 0 bans (play directly)
+  //   BO1 + 3 maps → 2 bans → 1 remains
+  //   BO3 + 3 maps → 0 bans (play in order)
+  //   BO3 + 5 maps → 2 bans → 3 remain
+  //   BO3 + 6 maps → 3 bans → 3 remain  (p1, p2, p1)
+  const bansNeeded = Math.max(0, mapPool.length - bestOf);
+  if (bansNeeded > 0) {
     // Bail out immediately if already cancelled before ban phase starts
     if (cancelToken?.cancelled) return { winner: p1, loser: p2, method: 'cancelled', wins };
 
-    log(`Map ban phase: pool=[${mapPool.join(', ')}]`);
+    log(`Map ban phase: ${bansNeeded} ban(s) needed — pool=[${mapPool.join(', ')}]`);
 
     const poolStr = mapPool.map((m, i) => `${i + 1}. ${m}`).join(' | ');
     await ph.sendLobbyChat(page,
-      `📍 MAP BAN — ${p1} vs ${p2} | Pool: ${poolStr} | Each player types !ban <mapname>. You have 3 minutes.`
+      `📍 MAP BAN — ${p1} vs ${p2} | Pool: ${poolStr} | ${bansNeeded} ban(s) total, alternating. You have 3 minutes.`
     );
 
     const banResult = await ph.waitForMapBans(
-      page, p1, p2, mapPool, cfg.banTimeoutMs || 3 * 60_000,
+      page, p1, p2, mapPool, bansNeeded, cfg.banTimeoutMs || 3 * 60_000,
       (msg) => ph.sendLobbyChat(page, msg),
       ph.watchLobbyChat
     );
@@ -823,17 +837,13 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
     // Bail out if a Force Win arrived while the ban phase was running
     if (cancelToken?.cancelled) return { winner: p1, loser: p2, method: 'cancelled', wins };
 
-    // Build remaining map list by removing both banned maps (preserve order)
-    const bannedLow = Object.values(banResult.bans).filter(Boolean).map(b => b.toLowerCase());
-    remainingMaps = mapPool.filter(m => !bannedLow.includes(m.toLowerCase()));
-
-    const p1ban = banResult.bans[p1] || '(auto)';
-    const p2ban = banResult.bans[p2] || '(auto)';
-    const mapsStr = remainingMaps.join(' → ');
+    remainingMaps = banResult.remaining;
+    const mapsStr    = remainingMaps.join(' → ');
+    const banSummary = banResult.bans.map(b => `${b.player}: ${b.map}${b.auto ? ' (auto)' : ''}`).join(', ');
     if (banResult.timedOut) {
-      await ph.sendLobbyChat(page, `⏰ Ban timer expired. Banned: ${p1ban} & ${p2ban} | Maps to play: ${mapsStr}`);
+      await ph.sendLobbyChat(page, `⏰ Ban timer expired. Bans: ${banSummary} | Maps: ${mapsStr}`);
     } else {
-      await ph.sendLobbyChat(page, `✅ Bans done — ${p1} banned ${p1ban}, ${p2} banned ${p2ban} | Maps: ${mapsStr}`);
+      await ph.sendLobbyChat(page, `✅ Bans done — ${banSummary} | Maps: ${mapsStr}`);
     }
     log(`Maps to play in order: ${mapsStr}`);
     await page.waitForTimeout(3000);
