@@ -1108,6 +1108,7 @@ function connectWS() {
     // Fetch fresh state now that we're connected
     fetch('/api/state').then(r => r.json()).then(snap => {
       if (snap) {
+        if (snap.booted !== undefined) booted = snap.booted;
         S.phase   = snap.phase   || S.phase;
         S.workers = snap.workers || S.workers;
         S.bracket = snap.bracket || S.bracket;
@@ -1125,6 +1126,7 @@ function connectWS() {
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'snapshot') {
+      if (msg.booted !== undefined) booted = msg.booted;
       S = { phase: msg.phase, format: msg.format || 'single_elimination',
             players: msg.players || [], bracket: msg.bracket || null,
             activeMatches: msg.activeMatches || {}, workers: msg.workers || [],
@@ -1970,6 +1972,7 @@ setInterval(async () => {
   try {
     const snap = await fetch('/api/state').then(r => r.json());
     if (snap) {
+      if (snap.booted !== undefined) booted = snap.booted;
       S.workers       = snap.workers       || S.workers;
       S.activeMatches = snap.activeMatches || S.activeMatches;
       S.requiredWorkers = snap.requiredWorkers || S.requiredWorkers;

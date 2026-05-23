@@ -1028,6 +1028,7 @@ async function overrideResult(matchId, newWinner) {
 // ── Dashboard API ─────────────────────────────────────────
 function getSnapshot() {
   return {
+    booted:        !!state.browser,   // true when browsers are running
     phase:         state.phase,
     format:        state.format,
     players:       state.players,
