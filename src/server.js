@@ -54,6 +54,21 @@ function startServer() {
         console.warn('  No leaderboard data found — starting fresh');
       }
     } else if (imageData) {
+      // Deduplication — remove duplicate tournament IDs from master, keeping only the first
+      // occurrence. Duplicates arise when tournamentEnd fires twice on the same tournament
+      // (e.g. a Force Win applied after the tournament was already recorded).
+      const seenTIds = new Set();
+      const beforeDedup = (masterData.tournaments || []).length;
+      masterData.tournaments = (masterData.tournaments || []).filter(t => {
+        if (seenTIds.has(t.id)) return false;
+        seenTIds.add(t.id);
+        return true;
+      });
+      const dupsRemoved = beforeDedup - masterData.tournaments.length;
+      if (dupsRemoved > 0) {
+        console.log(`  Removed ${dupsRemoved} duplicate tournament ID(s) from master`);
+      }
+
       // Scenario B — check if image has tournament IDs that master is missing
       const masterIds  = new Set((masterData.tournaments  || []).map(t => t.id));
       const newInImage = (imageData.tournaments || []).filter(t => !masterIds.has(t.id));
@@ -83,10 +98,15 @@ function startServer() {
               placementChanged = true;
             }
           }
-          // 2. Patch match-level score / replayFiles
+          // 2. Patch match-level fields
           for (const imgM of (imgT.matchLog || [])) {
             const mstrM = (mstrT.matchLog || []).find(m => m.matchId === imgM.matchId);
             if (!mstrM) continue;
+            // Correct winner/loser/method when image disagrees (committed data correction)
+            if (imgM.winner !== undefined && imgM.winner !== mstrM.winner) { mstrM.winner = imgM.winner; mergeCount++; placementChanged = true; }
+            if (imgM.loser  !== undefined && imgM.loser  !== mstrM.loser)  { mstrM.loser  = imgM.loser;  mergeCount++; }
+            if (imgM.method !== undefined && imgM.method !== mstrM.method) { mstrM.method = imgM.method; mergeCount++; }
+            // Backfill score / replayFiles added post-match
             if (!mstrM.score && imgM.score)                                                     { mstrM.score = imgM.score; mergeCount++; }
             if ((!mstrM.replayFiles || !mstrM.replayFiles.length) && imgM.replayFiles?.length) { mstrM.replayFiles = imgM.replayFiles; mergeCount++; }
           }

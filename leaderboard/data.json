@@ -15,6 +15,17 @@
         "T-1779535800702"
       ]
     },
+    "guest_663575": {
+      "wins": 0,
+      "losses": 2,
+      "titles": 0,
+      "top3": 0,
+      "matches": 2,
+      "points": 1,
+      "gamesPlayed": [
+        "t_20260408"
+      ]
+    },
     "itzJ": {
       "wins": 2,
       "losses": 2,
@@ -37,39 +48,18 @@
         "t_20260408"
       ]
     },
-    "guest_663575": {
-      "wins": 0,
-      "losses": 2,
-      "titles": 0,
-      "top3": 0,
-      "matches": 2,
-      "points": 1,
-      "gamesPlayed": [
-        "t_20260408"
-      ]
-    },
-    "icomefromsc": {
-      "wins": 2,
-      "losses": 1,
-      "titles": 0,
-      "top3": 1,
-      "matches": 3,
-      "points": 5,
-      "gamesPlayed": [
-        "t_20260411"
-      ]
-    },
     "ConsciouslyEating": {
-      "wins": 4,
+      "wins": 6,
       "losses": 4,
-      "titles": 0,
-      "top3": 3,
-      "matches": 8,
-      "points": 10,
+      "titles": 1,
+      "top3": 4,
+      "matches": 10,
+      "points": 19,
       "gamesPlayed": [
         "t_20260411",
         "T-1777730400614",
-        "T-1779535800702"
+        "T-1779535800702",
+        "T-1779636600702"
       ]
     },
     "Xizun": {
@@ -79,6 +69,17 @@
       "top3": 0,
       "matches": 1,
       "points": 1,
+      "gamesPlayed": [
+        "t_20260411"
+      ]
+    },
+    "icomefromsc": {
+      "wins": 2,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 3,
+      "points": 5,
       "gamesPlayed": [
         "t_20260411"
       ]
@@ -109,14 +110,15 @@
     },
     "Xab": {
       "wins": 2,
-      "losses": 3,
+      "losses": 4,
       "titles": 0,
       "top3": 2,
-      "matches": 5,
-      "points": 7,
+      "matches": 6,
+      "points": 8,
       "gamesPlayed": [
         "T-1777730400614",
-        "T-1778335200000"
+        "T-1778335200000",
+        "T-1779636600702"
       ]
     },
     "DragonArcherZ": {
@@ -128,20 +130,6 @@
       "points": 10,
       "gamesPlayed": [
         "T-1777730400614"
-      ]
-    },
-    "Zer0s": {
-      "wins": 1,
-      "losses": 4,
-      "titles": 0,
-      "top3": 2,
-      "matches": 5,
-      "points": 6,
-      "gamesPlayed": [
-        "T-1778335200000",
-        "T-1778857200000",
-        "T-1779462000000",
-        "T-1779535800702"
       ]
     },
     "amary": {
@@ -166,16 +154,18 @@
         "T-1778335200000"
       ]
     },
-    "WeirdRat": {
-      "wins": 5,
-      "losses": 0,
-      "titles": 2,
+    "Zer0s": {
+      "wins": 1,
+      "losses": 4,
+      "titles": 0,
       "top3": 2,
       "matches": 5,
-      "points": 20,
+      "points": 6,
       "gamesPlayed": [
+        "T-1778335200000",
         "T-1778857200000",
-        "T-1779462000000"
+        "T-1779462000000",
+        "T-1779535800702"
       ]
     },
     "hazmel": {
@@ -190,25 +180,27 @@
       ]
     },
     "crayon": {
-      "wins": 1,
-      "losses": 2,
+      "wins": 2,
+      "losses": 3,
       "titles": 0,
-      "top3": 1,
-      "matches": 3,
-      "points": 3,
+      "top3": 2,
+      "matches": 5,
+      "points": 8,
       "gamesPlayed": [
         "T-1778857200000",
-        "T-1779462000000"
+        "T-1779462000000",
+        "T-1779636600702"
       ]
     },
-    "omegadeath": {
-      "wins": 1,
-      "losses": 1,
-      "titles": 0,
-      "top3": 1,
-      "matches": 2,
-      "points": 5,
+    "WeirdRat": {
+      "wins": 5,
+      "losses": 0,
+      "titles": 2,
+      "top3": 2,
+      "matches": 5,
+      "points": 20,
       "gamesPlayed": [
+        "T-1778857200000",
         "T-1779462000000"
       ]
     },
@@ -235,6 +227,17 @@
         "T-1779535800702"
       ]
     },
+    "omegadeath": {
+      "wins": 1,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 2,
+      "points": 5,
+      "gamesPlayed": [
+        "T-1779462000000"
+      ]
+    },
     "mqcmqc": {
       "wins": 0,
       "losses": 1,
@@ -244,6 +247,17 @@
       "points": 1,
       "gamesPlayed": [
         "T-1779535800702"
+      ]
+    },
+    "KKN": {
+      "wins": 0,
+      "losses": 1,
+      "titles": 0,
+      "top3": 1,
+      "matches": 1,
+      "points": 2,
+      "gamesPlayed": [
+        "T-1779636600702"
       ]
     }
   },
@@ -1238,10 +1252,13 @@
           ]
         ],
         "eliminated": [
+          "mqcmqc",
+          "Zer0s",
           "Zer0s",
           "Breach",
           "mqcmqc",
           "ConsciouslyEating",
+          "TheDarkRealm",
           "TheDarkRealm"
         ],
         "byeSeeds": [
@@ -1249,7 +1266,114 @@
           "mqcmqc"
         ]
       }
+    },
+    {
+      "id": "T-1779636600702",
+      "name": "Tournament 5/24/2026",
+      "format": "single_elimination",
+      "date": 1779641896846,
+      "champion": "ConsciouslyEating",
+      "second": "crayon",
+      "third": "KKN",
+      "players": [
+        "ConsciouslyEating",
+        "KKN",
+        "Xab",
+        "crayon"
+      ],
+      "matchLog": [
+        {
+          "matchId": "SE-0-1",
+          "round": "Semi-Finals",
+          "p1": "Xab",
+          "p2": "ConsciouslyEating",
+          "winner": "ConsciouslyEating",
+          "loser": "Xab",
+          "method": "series",
+          "score": "2-0",
+          "replayFiles": [
+            "2026-05-24_SemiFinalsG1_Xab-vs-ConsciouslyEating.json",
+            "2026-05-24_SemiFinalsG2_Xab-vs-ConsciouslyEating.json"
+          ]
+        },
+        {
+          "matchId": "SE-0-0",
+          "round": "Semi-Finals",
+          "p1": "crayon",
+          "p2": "KKN",
+          "winner": "crayon",
+          "loser": "KKN",
+          "method": "series",
+          "score": "2-0",
+          "replayFiles": [
+            "2026-05-24_SemiFinalsG1_crayon-vs-KKN.json",
+            "2026-05-24_SemiFinalsG2_crayon-vs-KKN.json"
+          ]
+        },
+        {
+          "matchId": "SE-1-0",
+          "round": "Grand Final",
+          "p1": "ConsciouslyEating",
+          "p2": "crayon",
+          "winner": "ConsciouslyEating",
+          "loser": "crayon",
+          "method": "series",
+          "score": "2-1",
+          "replayFiles": [
+            "2026-05-24_Grand-FinalG1_ConsciouslyEating-vs-crayon.json",
+            "2026-05-24_Grand-FinalG2_ConsciouslyEating-vs-crayon.json",
+            "2026-05-24_Grand-FinalG3_ConsciouslyEating-vs-crayon.json"
+          ]
+        }
+      ],
+      "replayDir": "/app/data/replays",
+      "bracket": {
+        "format": "single_elimination",
+        "rounds": [
+          [
+            {
+              "p1": "crayon",
+              "p2": "KKN",
+              "winner": "crayon",
+              "loser": "KKN",
+              "id": "SE-0-0",
+              "bracket": "SE",
+              "roundIdx": 0,
+              "matchIdx": 0
+            },
+            {
+              "p1": "Xab",
+              "p2": "ConsciouslyEating",
+              "winner": "ConsciouslyEating",
+              "loser": "Xab",
+              "id": "SE-0-1",
+              "bracket": "SE",
+              "roundIdx": 0,
+              "matchIdx": 1
+            }
+          ],
+          [
+            {
+              "p1": "ConsciouslyEating",
+              "p2": "crayon",
+              "winner": "ConsciouslyEating",
+              "loser": "crayon",
+              "id": "SE-1-0",
+              "bracket": "SE",
+              "roundIdx": 1,
+              "matchIdx": 0
+            }
+          ]
+        ],
+        "eliminated": [
+          "Xab",
+          "KKN",
+          "crayon"
+        ],
+        "byeSeeds": [],
+        "hasPlayIn": false
+      }
     }
   ],
-  "updatedAt": 1779581607406
+  "updatedAt": 1779659296302
 }
