@@ -522,6 +522,20 @@ body {
   margin-left: 5px;
   vertical-align: middle;
 }
+.mcol-replay { white-space: nowrap; }
+.replay-dl {
+  display: inline-block;
+  font-size: 7px;
+  color: #7799ff;
+  border: 1px solid #3355aa;
+  padding: 2px 5px;
+  margin: 1px 2px 1px 0;
+  text-decoration: none;
+  background: rgba(68,102,255,.08);
+  vertical-align: middle;
+  letter-spacing: .02em;
+}
+.replay-dl:hover { background: rgba(68,102,255,.22); border-color: #5577cc; color: #aabbff; }
 
 /* Bracket inside history */
 .bwrap { padding: 16px; overflow-x: auto; }
@@ -916,6 +930,9 @@ function render(data) {
       const badgeStyle = m.method==='forfeit' ? ' style="background:#5a1a1a;color:#ff6b6b;border-color:#7a2a2a;"' : m.method==='no_show' ? ' style="background:#3a2a00;color:#f0a500;border-color:#5a4200;"' : '';
       const badge = m.method!=='gg'?`<span class="mbadge"${badgeStyle}>${esc(m.method==='no_show'?'no show':m.method)}</span>`:'';
       const scoreCell = m.score ? `<td class="mcol-score">${esc(m.score)}</td>` : '<td></td>';
+      const replayCell = (m.replayFiles && m.replayFiles.length)
+        ? `<td class="mcol-replay">${m.replayFiles.map((f,i) => `<a class="replay-dl" href="/replays/${esc(f)}" download>${m.replayFiles.length > 1 ? `⬇ G${i+1}` : '⬇ Replay'}</a>`).join('')}</td>`
+        : '<td></td>';
       return `<tr>
         <td class="mcol-round">${esc(m.round||'')}</td>
         <td>${esc(m.p1||'')}</td>
@@ -923,6 +940,7 @@ function render(data) {
         <td>${esc(m.p2||'')}</td>
         ${scoreCell}
         <td class="mcol-win">${esc(m.winner)}${badge}</td>
+        ${replayCell}
       </tr>`;
     }).join('');
     const mc = (t.matchLog||[]).filter(m=>m.winner&&m.winner!=='BYE').length;
@@ -942,7 +960,7 @@ function render(data) {
       </div>
       ${mrows?`<details class="tdetail"><summary>Match Results <span class="det-count">${mc} games</span></summary>
         <div class="mwrap"><table class="mtbl">
-          <thead><tr><th>Round</th><th>P1</th><th></th><th>P2</th><th>Score</th><th>Winner</th></tr></thead>
+          <thead><tr><th>Round</th><th>P1</th><th></th><th>P2</th><th>Score</th><th>Winner</th><th>Replay</th></tr></thead>
           <tbody>${mrows}</tbody>
         </table></div>
       </details>`:''}
