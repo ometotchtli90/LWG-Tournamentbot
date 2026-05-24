@@ -1148,7 +1148,7 @@ function renderLiveBracket(live) {
           <span style="font-size:8px;color:var(--blue-dim);margin-left:auto;">${live.phase?.toUpperCase() || ''}</span>
         </div>
         <div style="padding:14px">
-          ${renderBracket(live.bracket)}
+          ${renderBracket(live.bracket, live.matchLog)}
           ${Object.keys(live.activeMatches||{}).length ? `
           <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
             <div style="font-family:var(--pixel);font-size:8px;color:var(--gold);letter-spacing:.08em;margin-bottom:8px;">ACTIVE MATCHES</div>

@@ -907,13 +907,13 @@ function writeDataJson(data) {
 // ── Write live.json to leaderboard folder ─────────────────
 // Called after each bracket update so the public leaderboard page
 // can display the current live bracket without authentication.
-function writeLiveJson({ bracket, activeMatches, phase, players, tournamentName } = {}) {
+function writeLiveJson({ bracket, activeMatches, phase, players, tournamentName, matchLog } = {}) {
   try {
     const leaderboardDir = path.join(__dirname, '..', 'leaderboard');
     fs.mkdirSync(leaderboardDir, { recursive: true });
     fs.writeFileSync(
       path.join(leaderboardDir, 'live.json'),
-      JSON.stringify({ bracket, activeMatches, phase, players, tournamentName, updatedAt: Date.now() }, null, 2),
+      JSON.stringify({ bracket, activeMatches, phase, players, tournamentName, matchLog: matchLog || [], updatedAt: Date.now() }, null, 2),
       'utf8'
     );
   } catch (e) { console.warn('[leaderboard] writeLiveJson failed:', e.message); }

@@ -382,7 +382,7 @@ async function buildTournament() {
   });
 
   // Publish live bracket immediately so the public leaderboard shows it
-  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: 'running', players: state.players, tournamentName: tName });
+  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: 'running', players: state.players, tournamentName: tName, matchLog: state.matchLog });
 
   dispatchReadyMatches();
 }
@@ -416,7 +416,7 @@ async function dispatchReadyMatches() {
 
   // Update live.json with the newly populated activeMatches so the
   // public leaderboard shows which matches are running right away.
-  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: state.phase, players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
+  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: state.phase, players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}`, matchLog: state.matchLog });
 
   if (!assignments.length) return;
 
@@ -739,7 +739,7 @@ async function checkWalkoverChampion() {
   state.phase = 'done';
   emit('phase',   { phase: 'done', champion: champ });
   emit('bracket', { bracket: state.bracket });
-  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: {}, phase: 'done', players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
+  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: {}, phase: 'done', players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}`, matchLog: state.matchLog });
 
   const { second, third } = computePlacements(state.bracket);
   lb.tournamentEnd({ id: state.tournamentId, champion: champ, second, third, bracket: state.bracket });
@@ -813,7 +813,7 @@ async function applyResult(match, winner, loser, method, gameName, score = null,
 
   emit('match_result', { gameName, winner, loser, method, matchId: match.id });
   emit('bracket',      { bracket: state.bracket });
-  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: state.phase, players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
+  lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: state.activeMatches, phase: state.phase, players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}`, matchLog: state.matchLog });
 
   // Accumulate match log for end-of-tournament export
   if (winner !== 'BYE') {
@@ -850,7 +850,7 @@ async function applyResult(match, winner, loser, method, gameName, score = null,
     // Derive 2nd and 3rd from bracket structure (more reliable than eliminated order)
     const { second, third } = computePlacements(state.bracket);
     lb.tournamentEnd({ id: state.tournamentId, champion: champ, second, third, bracket: state.bracket });
-    lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: {}, phase: 'done', players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}` });
+    lbExport.writeLiveJson({ bracket: state.bracket, activeMatches: {}, phase: 'done', players: state.players, tournamentName: `Tournament ${new Date().toLocaleDateString()}`, matchLog: state.matchLog });
     lbExport.recordTournament({
       id:       state.tournamentId,
       name:     `Tournament ${new Date().toLocaleDateString()}`,
