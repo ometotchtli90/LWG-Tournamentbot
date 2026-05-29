@@ -166,18 +166,32 @@ async function boot(accounts) {
   console.log(`  Workers headless: ${workersHeadless}`);
   state.workerBrowser   = wb;
 
-  for (const acc of accounts.workers) {
+  for (let wi = 0; wi < accounts.workers.length; wi++) {
+    const acc = accounts.workers[wi];
+    // Stagger worker logins by 2 s to avoid hammering the game server simultaneously.
+    if (wi > 0) await new Promise(r => setTimeout(r, 2000));
     console.log(`  Worker (headless): ${acc.username}`);
-    try {
-      const ctx = await wb.newContext({ acceptDownloads: true });
-      const wp  = await ctx.newPage();
-      await ph.navigateToLobby(wp);
-      await ph.login(wp, acc.username, acc.password);
-      state.workerPages.push({ page: wp, username: acc.username, busy: false });
-    } catch (e) {
+    let loginOk = false;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const ctx = await wb.newContext({ acceptDownloads: true });
+        const wp  = await ctx.newPage();
+        await ph.navigateToLobby(wp);
+        await ph.login(wp, acc.username, acc.password);
+        state.workerPages.push({ page: wp, username: acc.username, busy: false });
+        loginOk = true;
+        break;
+      } catch (e) {
+        console.error(`  ⚠ Worker ${acc.username} login attempt ${attempt}/2 failed: ${e.message}`);
+        if (attempt < 2) {
+          console.log(`    Retrying in 5 s...`);
+          await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+    }
+    if (!loginOk) {
       // One worker failing must not abort the whole boot — log and continue.
-      console.error(`  ⚠ Worker ${acc.username} login failed: ${e.message}`);
-      emit('worker_log', { message: `⚠ ${acc.username} login failed: ${e.message}`, ts: Date.now() });
+      emit('worker_log', { message: `⚠ ${acc.username} login failed after 2 attempts`, ts: Date.now() });
     }
   }
 
@@ -1221,17 +1235,25 @@ async function doReconnect(accounts) {
 
   const { browser: wb } = await launchBrowser(workersHeadless);
   state.workerBrowser = wb;
-  for (const acc of accounts.workers) {
-    try {
-      const ctx = await wb.newContext({ acceptDownloads: true });
-      const wp  = await ctx.newPage();
-      await ph.navigateToLobby(wp);
-      await ph.login(wp, acc.username, acc.password);
-      state.workerPages.push({ page: wp, username: acc.username, busy: false });
-    } catch (e) {
-      console.error(`  ⚠ Worker ${acc.username} login failed: ${e.message}`);
-      emit('worker_log', { message: `⚠ ${acc.username} login failed: ${e.message}`, ts: Date.now() });
+  for (let wi = 0; wi < accounts.workers.length; wi++) {
+    const acc = accounts.workers[wi];
+    if (wi > 0) await new Promise(r => setTimeout(r, 2000));
+    let loginOk = false;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const ctx = await wb.newContext({ acceptDownloads: true });
+        const wp  = await ctx.newPage();
+        await ph.navigateToLobby(wp);
+        await ph.login(wp, acc.username, acc.password);
+        state.workerPages.push({ page: wp, username: acc.username, busy: false });
+        loginOk = true;
+        break;
+      } catch (e) {
+        console.error(`  ⚠ Worker ${acc.username} login attempt ${attempt}/2 failed: ${e.message}`);
+        if (attempt < 2) await new Promise(r => setTimeout(r, 5000));
+      }
     }
+    if (!loginOk) emit('worker_log', { message: `⚠ ${acc.username} login failed after 2 attempts`, ts: Date.now() });
   }
 
   emit('boot', { workers: state.workerPages.map(w => w.username), channel });

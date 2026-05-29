@@ -4,7 +4,10 @@
 const LWG_URL = 'https://www.littlewargame.com/play/';
 
 async function navigateToLobby(page) {
-  await page.goto(LWG_URL, { waitUntil: 'networkidle' });
+  // 'load' fires when the DOM + subresources are ready — sufficient for button interaction.
+  // 'networkidle' would wait for all XHR/WebSocket activity to stop, which LWG never reaches
+  // due to its persistent lobby connections, causing reliable 30-second timeouts.
+  await page.goto(LWG_URL, { waitUntil: 'load', timeout: 60000 });
 }
 
 // ── Dismiss first-visit popups ────────────────────────────
