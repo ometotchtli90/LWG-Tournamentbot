@@ -780,9 +780,14 @@ function esc(s) {
 function renderBracket(bracket, matchLog) {
   if (!bracket) return '<div class="empty" style="padding:20px"><div class="empty-sub">No bracket data.</div></div>';
 
-  // Build score lookup: matchId → "winner_wins-loser_wins"
-  const scoreMap = {};
-  (matchLog||[]).forEach(ml => { if (ml.score) scoreMap[ml.matchId] = ml.score; });
+  // Build lookups keyed by matchId.
+  // matchLog is authoritative — bracket.winner may be stale if a result was corrected.
+  const scoreMap  = {};
+  const winnerMap = {};
+  (matchLog||[]).forEach(ml => {
+    if (ml.score)  scoreMap[ml.matchId]  = ml.score;
+    if (ml.winner) winnerMap[ml.matchId] = ml.winner;
+  });
 
   function slot(name, winner, sc) {
     const isBye = name === 'BYE', isTbd = !name || name === 'TBD';
@@ -792,7 +797,9 @@ function renderBracket(bracket, matchLog) {
   }
   function card(m) {
     if (!m) return '';
-    const p1=m.p1||'TBD', p2=m.p2||'TBD', w=m.winner;
+    const p1=m.p1||'TBD', p2=m.p2||'TBD';
+    // Prefer matchLog winner (correctable via data.json commit); fall back to bracket field
+    const w = winnerMap[m.id] || m.winner;
     const live = !w && p1!=='BYE' && p1!=='TBD' && p2!=='BYE' && p2!=='TBD';
     let p1Sc=null, p2Sc=null;
     const score = scoreMap[m.id];
