@@ -110,6 +110,27 @@ function startServer() {
             if (!mstrM.score && imgM.score)                                                     { mstrM.score = imgM.score; mergeCount++; }
             if ((!mstrM.replayFiles || !mstrM.replayFiles.length) && imgM.replayFiles?.length) { mstrM.replayFiles = imgM.replayFiles; mergeCount++; }
           }
+          // 3. Sync bracket match winner/loser from the (now-patched) master matchLog.
+          //    The bracket object is never written to by live play — it only reflects the
+          //    initial bracket state. After a result correction the matchLog is authoritative
+          //    but the bracket winner field stays stale until we patch it here.
+          const mlById = {};
+          for (const ml of (mstrT.matchLog || [])) { if (ml.matchId) mlById[ml.matchId] = ml; }
+          const patchBm = bm => {
+            if (!bm || !bm.id) return;
+            const ml = mlById[bm.id];
+            if (!ml) return;
+            if (ml.winner && bm.winner !== ml.winner) { bm.winner = ml.winner; mergeCount++; }
+            if (ml.loser  && bm.loser  !== ml.loser)  { bm.loser  = ml.loser;  mergeCount++; }
+          };
+          const br = mstrT.bracket || {};
+          if (br.format === 'single_elimination') {
+            (br.rounds || []).forEach(r => r.forEach(patchBm));
+          } else if (br.format === 'double_elimination') {
+            (br.wb || []).forEach(r => r.forEach(patchBm));
+            (br.lb || []).forEach(r => r.forEach(patchBm));
+            (br.gf || []).forEach(patchBm);
+          }
         }
         if (mergeCount > 0) {
           if (placementChanged) lbExport.recalculateAllStats(masterData);
