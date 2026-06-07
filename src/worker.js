@@ -855,7 +855,8 @@ async function hostSeries(page, workerName, gameName, p1, p2, mapPool, bestOf, o
     const banResult = await ph.waitForMapBans(
       page, p1, p2, mapPool, bansNeeded, cfg.banTimeoutMs || 3 * 60_000,
       (msg) => ph.sendLobbyChat(page, msg),
-      ph.watchLobbyChat
+      ph.watchLobbyChat,
+      cancelToken
     );
 
     // Bail out if a Force Win arrived while the ban phase was running

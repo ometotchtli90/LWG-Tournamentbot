@@ -619,7 +619,7 @@ function splitMessage(text, maxLen) {
 // Ban order alternates: p1, p2, p1, p2, … for bansNeeded total bans.
 //
 // Returns: { bans: [{player, map, auto?}], remaining: string[], timedOut: bool }
-function waitForMapBans(page, p1, p2, mapPool, bansNeeded, timeoutMs, sendMsg, watchFn) {
+function waitForMapBans(page, p1, p2, mapPool, bansNeeded, timeoutMs, sendMsg, watchFn, cancelToken) {
   return new Promise((resolve) => {
     const p1l     = p1.toLowerCase();
     const p2l     = p2.toLowerCase();
@@ -630,17 +630,22 @@ function waitForMapBans(page, p1, p2, mapPool, bansNeeded, timeoutMs, sendMsg, w
     const bansDone  = [];           // { player: displayName, map: string, auto?: true }
     const bannedLow = new Set();    // lowercase set of already-banned maps
 
+    let finished = false;
     const currentTurn = () => banOrder[bansDone.length]; // undefined when all done
 
-    const finish = (timedOut) => {
+    const finish = (timedOut, cancelled = false) => {
+      if (finished) return;
+      finished = true;
+      if (cancelIv) clearInterval(cancelIv);
       const remaining = mapPool.filter(m => !bannedLow.has(m.toLowerCase()));
-      resolve({ bans: bansDone, remaining, timedOut });
+      resolve({ bans: bansDone, remaining, timedOut, cancelled });
     };
 
     // Announce first turn
     sendMsg(`🗺️ ${p1} bans first — type !ban <mapname>`).catch(() => {});
 
     const stop = watchFn(page, (username, message) => {
+      if (finished) return;
       const uLow = stripClanTag(username).toLowerCase();
       if (uLow !== p1l && uLow !== p2l) return;
       if (!message.toLowerCase().startsWith('!ban ')) return;
@@ -688,8 +693,18 @@ function waitForMapBans(page, p1, p2, mapPool, bansNeeded, timeoutMs, sendMsg, w
       }
     });
 
+    // Poll cancelToken so a Force Win override immediately aborts this ban phase
+    const cancelIv = cancelToken ? setInterval(() => {
+      if (!cancelToken.cancelled) return;
+      clearInterval(cancelIv);
+      clearTimeout(deadline);
+      stop();
+      finish(false, true);
+    }, 300) : null;
+
     const deadline = setTimeout(() => {
       stop();
+      if (cancelIv) clearInterval(cancelIv);
       // Auto-fill any remaining ban slots (pick first available map per slot)
       while (bansDone.length < bansNeeded) {
         const avail = mapPool.filter(m => !bannedLow.has(m.toLowerCase()));
